@@ -36,7 +36,7 @@ Reference for warnings:
  4311 - 64bit, type cast pointer truncation
  4312 - 64bit, conversion to X of greater size
  4324 - 64bit, structure was padded
- 4458 - declaraion of X hides class member
+ 4458 - declaration of X hides class member
  4522 - multiple assignment operators specified
  4530 - exception mismatch
  4611 - interaction between '_setjmp' and C++ object destruction is non-portable
@@ -143,7 +143,7 @@ function clang_conf()
     toolset "clang"
     buildoptions {"-fms-compatibility", "-fms-extensions", "-Wno-microsoft-include", "-march=x86-64-v3", "-maes"}
 
-    warnings "Off"
+    warnings "Extra"
     exceptionhandling "On"
   filter {}
 
@@ -203,6 +203,9 @@ workspace "SumatraPDF"
   filter {}
 
   disablewarnings { "4127", "4189", "4324", "4458", "4522", "4611", "4702", "4800", "6319" }
+  filter "options:with-clang"
+  buildoptions {"-Wno-unused-variable", "-Wno-unused-value", "-Wno-unreachable-code"}
+  filter {}
 
   location "this_is_invalid_location"
 
@@ -291,6 +294,10 @@ workspace "SumatraPDF"
     -- exceptionhandling "On"
     disablewarnings { "4530" } -- warning about using C++ exception handler without exceptions enabled
 
+    filter "options:with-clang"
+    buildoptions {"-Wno-macro-redefined", "-Wno-deprecated-declarations", "-Wno-dangling-else", "-Wno-logical-op-parentheses", "-Wno-switch", "-Wno-missing-braces","-Wno-unused-but-set-variable","-Wno-unused-function", "-Wno-logical-not-parentheses", "-Wno-unused-parameter", "-Wno-sign-compare", "-Wno-missing-field-initializers"}
+    filter{}
+
     includedirs { "ext/unrar" }
     unrar_files()
 
@@ -312,6 +319,9 @@ workspace "SumatraPDF"
     filter{}
     disablewarnings { "4100", "4189", "4244", "4267", "4302", "4311", "4312", "4505"}
     disablewarnings { "4456", "4457", "4459", "4530", "4701", "4702", "4703", "4706" }
+    filter "options:with-clang"
+    buildoptions {"-Wno-unused-parameter", "-Wno-#pragma-messages", "-Wno-int-to-void-pointer-cast", "-Wno-unused-function", "-Wno-sign-compare", "-Wno-parentheses-equality", "-Wno-unused-but-set-variable", "-Wno-deprecated-copy-with-user-provided-copy", "-Wno-misleading-indentation", "-Wno-ignored-qualifiers", "-Wno-deprecated-register", "-Wno-tautological-overlap-compare"}
+    filter{}
     includedirs { "ext/libjpeg-turbo" }
     libdjvu_files()
 
@@ -321,6 +331,9 @@ workspace "SumatraPDF"
     optimized_conf()
     defines { "_CRT_SECURE_NO_WARNINGS" }
     disablewarnings { "4018", "4244", "4267", "4996" }
+    filter "options:with-clang"
+    buildoptions {"-Wno-sign-compare", "-Wno-deprecated-declarations"}
+    filter {}
     files { "ext/CHMLib/*.c", "ext/CHMLib/*.h" }
 
   project "engines"
@@ -347,6 +360,9 @@ workspace "SumatraPDF"
     defines { "HAVE_ZLIB", "HAVE_BZIP2", "HAVE_7Z", "BZ_NO_STDIO", "_7ZIP_PPMD_SUPPPORT" }
     -- TODO: most of these warnings are due to bzip2 and lzma
     disablewarnings { "4100", "4244", "4267", "4456", "4457", "4996" }
+    filter "options:with-clang"
+    buildoptions {"-Wno-tautological-constant-out-of-range-compare", "-Wno-deprecated-declarations", "-Wno-unused-but-set-variable", "-Wno-unused-parameter", "-Wno-sign-compare", "-Wno-misleading-indentation"}
+    filter {}
     uses_zlib()
     includedirs { "ext/bzip2", "ext/lzma/C" }
     unarr_files()
@@ -372,6 +388,9 @@ workspace "SumatraPDF"
     defines { "_CRT_SECURE_NO_WARNINGS", "HAVE_DAV1D", "LIBHEIF_STATIC_BUILD" }
     includedirs { "ext/libheif", "ext/dav1d/include" }
     disablewarnings {  "4018", "4100", "4101","4146", "4244", "4245", "4267", "4273", "4456", "4701", "4703" }
+    filter "options:with-clang"
+    buildoptions {"-Wno-unused-parameter", "-Wno-tautological-constant-out-of-range-compare"}
+    filter {}
     -- TODO: I don't want RTTI and /EHsc
     rtti "On"
     buildoptions { "/EHsc" }
@@ -388,6 +407,9 @@ workspace "SumatraPDF"
       defines { "ARCH_X86_32=0", "ARCH_X86_64=1" }
     filter{}
     disablewarnings { "4057", "4090", "4100", "4152", "4201", "4244", "4245", "4456", "4457", "4701", "4703", "4706", "4819", "4996" }
+    filter "options:with-clang"
+    buildoptions {"-Wno-unused-parameter"}
+    filter {}
     includedirs { "ext/dav1d/include/compat/msvc", "ext/dav1d", "ext/dav1d/include" }
      -- nasm.exe -I .\ext\libjpeg-turbo\simd\
     -- -I .\ext\libjpeg-turbo\win\ -f win32
@@ -418,6 +440,9 @@ workspace "SumatraPDF"
     language "C"
     optimized_conf()
     disablewarnings { "4131", "4244", "4245", "4267", "4996" }
+    filter "options:with-clang"
+    buildoptions {"-Wno-deprecated-non-prototype", "-Wno-deprecated-declarations"}
+    filter {}
     zlib_files()
 
   -- to make Visual Studio solution smaller
@@ -436,6 +461,16 @@ workspace "SumatraPDF"
     -- libjpeg-turbo
     defines { "_CRT_SECURE_NO_WARNINGS" }
     disablewarnings { "4018", "4100", "4244", "4245", "4819" }
+    filter "options:with-clang"
+    buildoptions {
+        "-Wno-unused-parameter",
+        "-Wno-macro-redefined",
+        "-Wno-void-pointer-to-enum-cast",
+        "-Wno-unused-but-set-variable",
+        "-Wno-implicit-const-int-float-conversion",
+        "-Wno-unused-function"
+    }
+    filter {}
     includedirs { "ext/libjpeg-turbo", "ext/libjpeg-turbo/simd" }
     -- nasm.exe -I .\ext\libjpeg-turbo\simd\
     -- -I .\ext\libjpeg-turbo\win\ -f win32
@@ -604,6 +639,19 @@ workspace "SumatraPDF"
       "4005", "4018", "4057", "4100", "4115", "4130", "4132", "4204", "4206", "4210", "4245", "4267",
       "4295", "4305", "4389", "4456", "4457", "4703", "4706", "4819"
     }
+    filter "options:with-clang"
+    buildoptions {
+        "-Wno-unused-parameter",
+        "-Wno-unused-function",
+        "-Wno-missing-field-initializers",
+        "-Wno-extra-tokens",
+        "-Wno-incompatible-pointer-types",
+        "-Wno-sign-compare",
+        "-Wno-self-assign",
+        "-Wno-pointer-sign",
+        "-Wno-visibility"
+    }
+    filter {}
     -- force including mupdf/scripts/openjpeg/opj_config_private.h
     -- with our build over-rides
 
@@ -670,6 +718,16 @@ workspace "SumatraPDF"
 
     -- QITABENT in shlwapi.h has incorrect definition and causes 4838
     disablewarnings { "4100", "4267", "4457", "4838" }
+    filter "options:with-clang"
+    buildoptions {
+        "-Wno-pragma-pack",
+        "-Wno-unused-parameter",
+        "-Wno-unneeded-internal-declaration",
+        "-Wno-sign-compare",
+        "-Wno-logical-op-parentheses",
+        "-Wno-missing-field-initializers"
+    }
+    filter {}
     uses_zlib()
     defines { "LIBHEIF_STATIC_BUILD" }
     includedirs { "src", "ext/lzma/C" }
@@ -721,6 +779,9 @@ workspace "SumatraPDF"
     cppdialect "C++latest"
     mixed_dbg_rel_conf()
     disablewarnings { "4838" }
+    filter "options:with-clang"
+    buildoptions {"-Wno-reorder-ctor", "-Wno-switch", "-Wno-unneeded-internal-declaration", "-Wno-sign-compare", "-Wno-logical-op-parentheses", "-Wno-missing-field-initializers"}
+    filter {}
     includedirs { "src" }
     test_util_files()
     links { "gdiplus", "comctl32", "shlwapi", "Version", "wininet" }
@@ -731,6 +792,9 @@ workspace "SumatraPDF"
     cppdialect "C++latest"
     mixed_dbg_rel_conf()
     disablewarnings { "4996", "4706", "4100", "4505" }
+    filter "options:with-clang"
+    buildoptions {"-Wno-logical-op-parentheses", "-Wno-unused-function", "-Wno-unused-parameter", "-Wno-missing-field-initializers", "-Wno-deprecated-declarations", "-Wno-missing-braces", "-Wno-unused-but-set-variable"}
+    filter {}
     includedirs { "tools/sizer" }
     sizer_files()
     links { "ole32.lib", "oleaut32.lib" }
