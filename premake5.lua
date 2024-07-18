@@ -141,7 +141,13 @@ function clang_conf()
   filter "options:with-clang"
     location "vs2022-clang"
     toolset "clang"
-    buildoptions {"-fms-compatibility", "-fms-extensions", "-Wno-microsoft-include", "-march=x86-64-v3", "-maes"}
+    buildoptions {
+        "-fms-compatibility",
+        "-fms-extensions",
+        "-Wno-microsoft-include",
+        "-march=x86-64-v3",
+        "-maes"
+    }
 
     warnings "Extra"
     exceptionhandling "On"
@@ -205,7 +211,11 @@ workspace "SumatraPDF"
 
   disablewarnings { "4127", "4189", "4324", "4458", "4522", "4611", "4702", "4800", "6319" }
   filter "options:with-clang"
-  buildoptions {"-Wno-unused-variable", "-Wno-unused-value", "-Wno-unreachable-code"}
+  buildoptions {
+      "-Wno-unused-variable",
+      "-Wno-unused-value",
+      "-Wno-unreachable-code"
+  }
   filter {}
 
   location "this_is_invalid_location"
@@ -296,7 +306,20 @@ workspace "SumatraPDF"
     disablewarnings { "4530" } -- warning about using C++ exception handler without exceptions enabled
 
     filter "options:with-clang"
-    buildoptions {"-Wno-macro-redefined", "-Wno-deprecated-declarations", "-Wno-dangling-else", "-Wno-logical-op-parentheses", "-Wno-switch", "-Wno-missing-braces","-Wno-unused-but-set-variable","-Wno-unused-function", "-Wno-logical-not-parentheses", "-Wno-unused-parameter", "-Wno-sign-compare", "-Wno-missing-field-initializers"}
+    buildoptions {
+        "-Wno-macro-redefined",
+        "-Wno-deprecated-declarations",
+        "-Wno-dangling-else",
+        "-Wno-logical-op-parentheses",
+        "-Wno-switch",
+        "-Wno-missing-braces",
+        "-Wno-unused-but-set-variable",
+        "-Wno-unused-function",
+        "-Wno-logical-not-parentheses",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-missing-field-initializers"
+    }
     filter{}
 
     includedirs { "ext/unrar" }
@@ -321,7 +344,20 @@ workspace "SumatraPDF"
     disablewarnings { "4100", "4189", "4244", "4267", "4302", "4311", "4312", "4505"}
     disablewarnings { "4456", "4457", "4459", "4530", "4701", "4702", "4703", "4706" }
     filter "options:with-clang"
-    buildoptions {"-Wno-unused-parameter", "-Wno-#pragma-messages", "-Wno-int-to-void-pointer-cast", "-Wno-unused-function", "-Wno-sign-compare", "-Wno-parentheses-equality", "-Wno-unused-but-set-variable", "-Wno-deprecated-copy-with-user-provided-copy", "-Wno-misleading-indentation", "-Wno-ignored-qualifiers", "-Wno-deprecated-register", "-Wno-tautological-overlap-compare"}
+    buildoptions {
+        "-Wno-unused-parameter",
+        "-Wno-#pragma-messages",
+        "-Wno-int-to-void-pointer-cast",
+        "-Wno-unused-function",
+        "-Wno-sign-compare",
+        "-Wno-parentheses-equality",
+        "-Wno-unused-but-set-variable",
+        "-Wno-deprecated-copy-with-user-provided-copy",
+        "-Wno-misleading-indentation",
+        "-Wno-ignored-qualifiers",
+        "-Wno-deprecated-register",
+        "-Wno-tautological-overlap-compare"
+    }
     filter{}
     includedirs { "ext/libjpeg-turbo" }
     libdjvu_files()
@@ -333,7 +369,10 @@ workspace "SumatraPDF"
     defines { "_CRT_SECURE_NO_WARNINGS" }
     disablewarnings { "4018", "4244", "4267", "4996" }
     filter "options:with-clang"
-    buildoptions {"-Wno-sign-compare", "-Wno-deprecated-declarations"}
+    buildoptions {
+        "-Wno-sign-compare",
+        "-Wno-deprecated-declarations"
+    }
     filter {}
     files { "ext/CHMLib/*.c", "ext/CHMLib/*.h" }
 
@@ -362,7 +401,14 @@ workspace "SumatraPDF"
     -- TODO: most of these warnings are due to bzip2 and lzma
     disablewarnings { "4100", "4244", "4267", "4456", "4457", "4996" }
     filter "options:with-clang"
-    buildoptions {"-Wno-tautological-constant-out-of-range-compare", "-Wno-deprecated-declarations", "-Wno-unused-but-set-variable", "-Wno-unused-parameter", "-Wno-sign-compare", "-Wno-misleading-indentation"}
+    buildoptions {
+        "-Wno-tautological-constant-out-of-range-compare",
+        "-Wno-deprecated-declarations",
+        "-Wno-unused-but-set-variable",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-misleading-indentation"
+    }
     filter {}
     uses_zlib()
     includedirs { "ext/bzip2", "ext/lzma/C" }
@@ -390,7 +436,10 @@ workspace "SumatraPDF"
     includedirs { "ext/libheif", "ext/dav1d/include" }
     disablewarnings {  "4018", "4100", "4101","4146", "4244", "4245", "4267", "4273", "4456", "4701", "4703" }
     filter "options:with-clang"
-    buildoptions {"-Wno-unused-parameter", "-Wno-tautological-constant-out-of-range-compare"}
+    buildoptions {
+        "-Wno-unused-parameter",
+        "-Wno-tautological-constant-out-of-range-compare"
+    }
     filter {}
     -- TODO: I don't want RTTI and /EHsc
     rtti "On"
@@ -442,7 +491,10 @@ workspace "SumatraPDF"
     optimized_conf()
     disablewarnings { "4131", "4244", "4245", "4267", "4996" }
     filter "options:with-clang"
-    buildoptions {"-Wno-deprecated-non-prototype", "-Wno-deprecated-declarations"}
+    buildoptions {
+        "-Wno-deprecated-non-prototype",
+        "-Wno-deprecated-declarations"
+    }
     filter {}
     zlib_files()
 
@@ -781,7 +833,14 @@ workspace "SumatraPDF"
     mixed_dbg_rel_conf()
     disablewarnings { "4838" }
     filter "options:with-clang"
-    buildoptions {"-Wno-reorder-ctor", "-Wno-switch", "-Wno-unneeded-internal-declaration", "-Wno-sign-compare", "-Wno-logical-op-parentheses", "-Wno-missing-field-initializers"}
+    buildoptions {
+        "-Wno-reorder-ctor",
+        "-Wno-switch",
+        "-Wno-unneeded-internal-declaration",
+        "-Wno-sign-compare",
+        "-Wno-logical-op-parentheses",
+        "-Wno-missing-field-initializers"
+    }
     filter {}
     includedirs { "src" }
     test_util_files()
@@ -794,7 +853,15 @@ workspace "SumatraPDF"
     mixed_dbg_rel_conf()
     disablewarnings { "4996", "4706", "4100", "4505" }
     filter "options:with-clang"
-    buildoptions {"-Wno-logical-op-parentheses", "-Wno-unused-function", "-Wno-unused-parameter", "-Wno-missing-field-initializers", "-Wno-deprecated-declarations", "-Wno-missing-braces", "-Wno-unused-but-set-variable"}
+    buildoptions {
+        "-Wno-logical-op-parentheses",
+        "-Wno-unused-function",
+        "-Wno-unused-parameter",
+        "-Wno-missing-field-initializers",
+        "-Wno-deprecated-declarations",
+        "-Wno-missing-braces",
+        "-Wno-unused-but-set-variable"
+    }
     filter {}
     includedirs { "tools/sizer" }
     sizer_files()
