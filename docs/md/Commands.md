@@ -1,12 +1,11 @@
 # Commands
 
-You can control SumatraPDF with commands.
-
-You can:
+You can control SumatraPDF with commands:
 
 - use [command palette](Command-Palette.md) (`Ctrl + K`) to invoke a command by its description
-- you can [customize a keyboard shortcut](Customizing-keyboard-shortcuts.md) to invoke a command by it’s id
-- (since 3.5) you can [send a command via DDE](DDE-Commands.md) e.g. `[CmdClose]` to invoke `Close Document` command
+- [customize a keyboard shortcut](Customizing-keyboard-shortcuts.md) to invoke a command by its id
+- **since 3.5:** [send a command via DDE](DDE-Commands.md) e.g. `[CmdClose]` to invoke `Close Document` command
+- **since 3.6:** some commands accept arguments
 
 :search:
 
@@ -195,10 +194,10 @@ CmdZoom800,,Zoom: 800%
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette,Notes
-CmdOpenWithExplorer,,Open Directory In Explorer,3.5 or later
-CmdOpenWithDirectoryOpus,,Open Directory In Directory Opu,3.5 or later
-CmdOpenWithTotalCommander,,Open Directory In Total Commander,3.5 or later
-CmdOpenWithDoubleCommander,,Open Directory In Double Commander,3.5 or later
+CmdOpenWithExplorer,,Open Directory In Explorer,ver 3.5+
+CmdOpenWithDirectoryOpus,,Open Directory In Directory Opu,ver 3.5+
+CmdOpenWithTotalCommander,,Open Directory In Total Commander,ver 3.5+
+CmdOpenWithDoubleCommander,,Open Directory In Double Commander,ver 3.5+
 CmdOpenWithAcrobat,,Open With Adobe Acrobat,
 CmdOpenWithFoxIt,,Open With FoxIt,
 CmdOpenWithFoxItPhantom,,Open With FoxIt Phantom,
@@ -236,7 +235,7 @@ CmdShowLog,,Show Log
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
-CmdHelpOpenManual,,Help: Manual
+CmdHelpOpenManual,F1,Help: Manual
 CmdHelpOpenKeyboardShortcuts,,Help: Keyboard Shortcuts
 CmdHelpAbout,,Help: About SumatraPDF
 CmdHelpOpenManualOnWebsite,,Help: Manual On Website
@@ -255,9 +254,98 @@ CmdDebugTestApp,,Debug: Test App
 CmdNone,,Do nothing
 ```
 
-### **Deprecated**
+### **Deprecated or internal**
+
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
-CmdOpenWithFirst,,don't use
-CmdOpenWithLast,,don't use
+CmdDebugCorruptMemory,,don't use
+CmdOpenWithKnownExternalViewerFirst,,don't use
+CmdOpenWithKnownExternalViewerLast,,don't use
+CmdSelectionHandler,,don't use
+CmdSetTheme,,don't use
+CmdViewWithExternalViewer,,don't use
+CmdSaveAttachment,,don't use
+CmdOpenAttachment,,don't use
+```
+
+## Commands with arguments
+
+Since 3.6, some commands accept arguments which provides more capabilities when creating [custom keyboard shortcut](Customizing-keyboard-shortcuts.md).
+
+For example:
+
+```
+Shortcuts [
+    [
+        Cmd = CmdCreateAnnotHighlight #00ff00 openedit
+        Key = a
+    ]
+]
+```
+
+By default `a` invokes `CmdCreateAnnotHighlight` with default yellow color.
+
+You can over-ride `a` shortcut to creat green (`#00ff00`) highlight annotation instead and automatically open annotations edit window (`openedit` boolean argument).
+
+You can create multiple keyboard shortcuts for multiple colors.
+
+Arguments can be: strings, numbers, booleans, colors (`#rrggbb` or `#rrggbbaa` format).
+
+Arguments have names. For example `CmdCreateAnnotHighlight` has `color` argument of type color and optional `openedit` boolean argument.
+
+The format of providing arguments is: `CmdCreateAnnotHighlight color: #fafafa openedit: true`.
+
+For boolean arguments name is the same as `true` value i.e. `openedit` is the same as `openedit: true`.
+
+For default arguments you can skip the name. For example: `color` is a default `CmdCreateAnnotHighlight` argument so `CmdCreateAnnotHighlight #fafafa` is the same as `CmdCreateAnnotHighlight color: #fafafa`
+
+You can combine those rules: `CmdCreateAnnotHighlight #fafafa openedit` is the same as `CmdCreateAnnotHighlight color: #fafafa openedit: true`.
+
+## `CmdScrollUp`, `CmdScrollDown`
+
+Arguments:
+
+- `n` : default, integer, how many lines to scroll up or down (default: 1)
+
+Use case: if you want to speed up scrolling with `j`, `k` keys, you can re-assign them:
+
+```
+Shortcuts [
+    [
+        Cmd = CmdScrollDown 5
+        Key = j
+    ]
+    [
+        Cmd = CmdScrollUp n: 5
+        Key = k
+    ]
+]
+```
+
+## `CmdGoToNextPage`, `CmdGoToPrevPage`
+
+Arguments:
+
+- `n` : default, integer, how many pages to advance by (default: 1)
+
+Use case: if you want to go forward, back by more than 1 page
+
+## `CmdCreateAnnotHighlight` and other `CmdCreateAnnot*`
+
+Arguments:
+
+- `color` : default, color
+- `openedit` : boolean, `false` if not given
+
+Use case: change default color for annotations. Create multiple shortcuts for different colors.
+
+Example: change `a` to create green highlight annotation:
+
+```
+Shortcuts [
+    [
+        Cmd = CmdCreateAnnotHighlight #00ff00 openedit
+        Key = a
+    ]
+]
 ```

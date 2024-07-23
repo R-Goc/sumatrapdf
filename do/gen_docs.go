@@ -121,7 +121,7 @@ func renderCodeBlock(w io.Writer, cb *ast.CodeBlock, entering bool) {
 	// os.WriteFile("temp.csv", csvContent, 0644)
 	r := csv.NewReader(bytes.NewReader(csvContent))
 	records, err := r.ReadAll()
-	if (err != nil) {
+	if err != nil {
 		logf("csv:\n%s\n\n", string(csvContent))
 		must(err)
 	}
@@ -140,8 +140,10 @@ func renderColumns(w io.Writer, columns *Columns, entering bool) {
 func makeRenderHook(r *mdhtml.Renderer, isMainPage bool) mdhtml.RenderNodeFunc {
 	seenFirstH1 := false
 	return func(w io.Writer, node ast.Node, entering bool) (ast.WalkStatus, bool) {
-		if !seenFirstH1 {
-			if h, ok := node.(*ast.Heading); ok && h.Level == 1 {
+		if h, ok := node.(*ast.Heading); ok {
+			// first h1 is always a title of the page, turn it into bread-crumbs
+			// (except for the main index page)
+			if !seenFirstH1 && h.Level == 1 {
 				if isMainPage {
 					seenFirstH1 = true
 					return ast.SkipChildren, true
@@ -149,6 +151,15 @@ func makeRenderHook(r *mdhtml.Renderer, isMainPage bool) mdhtml.RenderNodeFunc {
 				renderFirstH1(w, h, entering, &seenFirstH1)
 				return ast.GoToNext, true
 			}
+			// add: <a class="hlink" href="#${id}">#</a>
+			if entering {
+				r.HeadingEnter(w, h)
+			} else {
+				href := `<a class="hlink" href="#` + h.HeadingID + `"> # </a>`
+				r.Outs(w, href)
+				r.HeadingExit(w, h)
+			}
+			return ast.GoToNext, true
 		}
 		if cb, ok := node.(*ast.CodeBlock); ok {
 			if string(cb.Info) != "commands" {
@@ -158,6 +169,7 @@ func makeRenderHook(r *mdhtml.Renderer, isMainPage bool) mdhtml.RenderNodeFunc {
 			return ast.GoToNext, true
 		}
 		if columns, ok := node.(*Columns); ok {
+			r.Outs(w, "<p>haha</p>")
 			renderColumns(w, columns, entering)
 			return ast.GoToNext, true
 		}
@@ -599,6 +611,13 @@ func copyDocsToWebsite() {
 	files := []string{"notion.css", "sumatra.css"}
 	for _, name := range files {
 		srcPath := filepath.Join("docs", "www", name)
+		dstPath := filepath.Join(websiteDir, "server", "www", name)
+		copyFileMust(dstPath, srcPath)
+	}
+
+	files = []string{"gen_docs.search.js", "gen_docs.search.html"}
+	for _, name := range files {
+		srcPath := filepath.Join("do", name)
 		dstPath := filepath.Join(websiteDir, "server", "www", name)
 		copyFileMust(dstPath, srcPath)
 	}
