@@ -61,7 +61,7 @@ static i32 gBlacklistCommandsFromPalette[] = {
     CmdOpenAttachment,
 
     CmdCreateShortcutToFile, // not sure I want this at all
-
+    0,
 };
 
 // most commands are not valid when document is not opened
@@ -95,10 +95,9 @@ static i32 gDocumentNotOpenWhitelist[] = {
     CmdReopenLastClosedFile,
     CmdSelectNextTheme,
     CmdToggleFrequentlyRead,
-#if defined(DEBUG)
     CmdDebugCrashMe,
     CmdDebugCorruptMemory,
-#endif
+    0,
 };
 
 // for those commands do not activate main window
@@ -116,7 +115,19 @@ static i32 gCommandsNoActivate[] = {
     CmdOpenFolder,
     CmdProperties,
     // TOOD: probably more
+    0,
 };
+
+static i32 gCommandsDebugOnly[] = {
+    CmdDebugCorruptMemory,
+    CmdDebugCrashMe,
+    CmdDebugDownloadSymbols,
+    CmdDebugTestApp,
+    CmdDebugShowNotif,
+    CmdDebugStartStressTest,
+    0,
+};
+
 // clang-format on
 
 // those are shared with Menu.cpp
@@ -130,11 +141,12 @@ extern UINT_PTR removeIfNoDiskAccessPerm[];
 extern UINT_PTR removeIfNoCopyPerms[];
 extern UINT_PTR removeIfChm[];
 
-static bool __cmdInList(i32 cmdId, i32* ids, int nIds) {
-    for (int i = 0; i < nIds; i++) {
-        if (ids[i] == cmdId) {
+static bool IsCmdInList(i32 cmdId, i32* ids) {
+    while (*ids) {
+        if (cmdId == *ids) {
             return true;
         }
+        ids++;
     }
     return false;
 }
@@ -150,8 +162,6 @@ static bool IsCmdInMenuList(i32 cmdId, UINT_PTR* a) {
     return false;
 }
 
-#define IsCmdInList(name) __cmdInList(cmdId, name, dimof(name))
-
 struct CommandPaletteWnd : Wnd {
     ~CommandPaletteWnd() override = default;
     HFONT font = nullptr;
@@ -162,7 +172,6 @@ struct CommandPaletteWnd : Wnd {
     StrVec filesInHistory;
     StrVec commands;
     ListBox* listBox = nullptr;
-    Static* staticHelp = nullptr;
 
     int currTabPos = 0;
 
@@ -180,6 +189,7 @@ struct CommandPaletteWnd : Wnd {
 };
 
 struct CommandPaletteBuildCtx {
+    const char* filePath = nullptr;
     bool isDocLoaded = false;
     bool supportsAnnots = false;
     bool hasSelection = false;
@@ -197,30 +207,18 @@ struct CommandPaletteBuildCtx {
     bool canCloseTabsToRight = false;
     bool canCloseTabsToLeft = false;
 
-    ~CommandPaletteBuildCtx();
+    ~CommandPaletteBuildCtx() = default;
 };
-CommandPaletteBuildCtx::~CommandPaletteBuildCtx() {
-}
-
-static bool IsOpenExternalViewerCommand(i32 cmdId) {
-    if (IsCustomExternalViewerCmdId(cmdId)) {
-        return true;
-    }
-    return ((cmdId >= CmdOpenWithKnownExternalViewerFirst) && (cmdId <= CmdOpenWithKnownExternalViewerLast));
-}
 
 static bool AllowCommand(const CommandPaletteBuildCtx& ctx, i32 cmdId) {
-    switch (cmdId) {
-        case CmdDebugCorruptMemory:
-        case CmdDebugCrashMe:
-        case CmdDebugDownloadSymbols:
-        case CmdDebugTestApp:
-        case CmdDebugShowNotif:
-        case CmdDebugStartStressTest:
-            return gIsDebugBuild;
+    if (cmdId <= CmdFirst) {
+        return false;
+    }
+    if (IsCmdInList(cmdId, gCommandsDebugOnly)) {
+        return gIsDebugBuild;
     }
 
-    if (IsCmdInList(gBlacklistCommandsFromPalette)) {
+    if (IsCmdInList(cmdId, gBlacklistCommandsFromPalette)) {
         return false;
     }
 
@@ -238,19 +236,31 @@ static bool AllowCommand(const CommandPaletteBuildCtx& ctx, i32 cmdId) {
         return RecentlyCloseDocumentsCount() > 0;
     }
 
-    if (IsOpenExternalViewerCommand(cmdId)) {
-        return HasKnownExternalViewerForCmd(cmdId);
+    // when document is not loaded, most commands are not available
+    // except those white-listed
+    if (IsCmdInList(cmdId, gDocumentNotOpenWhitelist)) {
+        return true;
+    }
+    if (!ctx.isDocLoaded) {
+        return false;
+    }
+
+    ExternalViewer* ev = CustomExternalViewerForCmdId(cmdId);
+    bool isKnownEV = (cmdId >= CmdOpenWithKnownExternalViewerFirst) && (cmdId <= CmdOpenWithKnownExternalViewerLast);
+    if (ev != nullptr || isKnownEV) {
+        if (!ctx.isDocLoaded) {
+            return false;
+        }
+        if (isKnownEV) {
+            // TODO: match file name
+            return HasKnownExternalViewerForCmd(cmdId);
+        }
+        return PathMatchFilter(ctx.filePath, ev->filter);
     }
 
     // we only want to show this in home page
     if (cmdId == CmdToggleFrequentlyRead) {
         return !ctx.isDocLoaded;
-    }
-
-    if (!ctx.isDocLoaded) {
-        if (!IsCmdInList(gDocumentNotOpenWhitelist)) {
-            return false;
-        }
     }
 
     if (cmdId == CmdToggleMenuBar) {
@@ -346,6 +356,7 @@ void CommandPaletteWnd::CollectStrings(MainWindow* mainWin) {
     CommandPaletteBuildCtx ctx;
     ctx.isDocLoaded = mainWin->IsDocLoaded();
     WindowTab* tab = mainWin->CurrentTab();
+    ctx.filePath = tab ? tab->filePath : nullptr;
     ctx.hasSelection = ctx.isDocLoaded && tab && mainWin->showSelection && tab->selectionOnPage;
     ctx.canSendEmail = CanSendAsEmailAttachment(tab);
     ctx.allowToggleMenuBar = !mainWin->tabsInTitlebar;
@@ -410,7 +421,7 @@ void CommandPaletteWnd::CollectStrings(MainWindow* mainWin) {
                 if (tab2->IsAboutTab()) {
                     continue;
                 }
-                const char* name = tab2->filePath.Get();
+                const char* name = tab2->filePath;
                 name = path::GetBaseNameTemp(name);
                 AppendIfNotExists(filesInTabs, name);
                 // find current tab index
@@ -430,19 +441,41 @@ void CommandPaletteWnd::CollectStrings(MainWindow* mainWin) {
         filesInHistory.Append(s);
     }
 
-    // we want the commands sorted
     StrVec tempStrings;
     int cmdId = (int)CmdFirst + 1;
-    for (SeqStrings strs = gCommandDescriptions; strs; seqstrings::Next(strs, cmdId)) {
+    for (SeqStrings strs = gCommandDescriptions; strs; seqstrings::Next(strs, &cmdId)) {
+        if (cmdId == CmdAdvancedOptions) {
+            logf("advanced opts\n");
+        }
         if (AllowCommand(ctx, (i32)cmdId)) {
             ReportIf(str::Leni(strs) == 0);
             tempStrings.Append(strs);
         }
     }
+    for (auto& ev : *gGlobalPrefs->externalViewers) {
+        if (str::IsEmptyOrWhiteSpaceOnly(ev->name)) {
+            continue;
+        }
+        if (AllowCommand(ctx, ev->cmdId)) {
+            tempStrings.Append(ev->name);
+        }
+    }
+
+    // we want the commands sorted
     SortNoCase(tempStrings);
     for (char* s : tempStrings) {
         commands.Append(s);
     }
+}
+
+static void SwitchToCommands(CommandPaletteWnd* wnd) {
+    logf("commands\n");
+}
+static void SwitchToTabs(CommandPaletteWnd* wnd) {
+    logf("tabs\n");
+}
+static void SwitchToFileHistory(CommandPaletteWnd* wnd) {
+    logf("file history\n");
 }
 
 static CommandPaletteWnd* gCommandPaletteWnd = nullptr;
@@ -611,7 +644,7 @@ static WindowTab* FindOpenedFile(const char* s) {
             if (tab->IsAboutTab()) {
                 continue;
             }
-            const char* name = tab->filePath.Get();
+            const char* name = tab->filePath;
             name = path::GetBaseNameTemp(name);
             if (str::Eq(name, s)) {
                 return tab;
@@ -619,6 +652,15 @@ static WindowTab* FindOpenedFile(const char* s) {
         }
     }
     return nullptr;
+}
+
+static int ExternalViewerCmdIdByName(const char* name) {
+    for (auto& ev : *gGlobalPrefs->externalViewers) {
+        if (str::Eq(ev->name, name)) {
+            return ev->cmdId;
+        }
+    }
+    return -1;
 }
 
 void CommandPaletteWnd::ExecuteCurrentSelection() {
@@ -629,8 +671,11 @@ void CommandPaletteWnd::ExecuteCurrentSelection() {
     auto m = (ListBoxModelStrings*)listBox->model;
     const char* s = m->Item(sel);
     int cmdId = GetCommandIdByDesc(s);
+    if (cmdId <= 0) {
+        cmdId = ExternalViewerCmdIdByName(s);
+    }
     if (cmdId >= 0) {
-        bool noActivate = IsCmdInList(gCommandsNoActivate);
+        bool noActivate = IsCmdInList(cmdId, gCommandsNoActivate);
         if (noActivate) {
             gHwndToActivateOnClose = nullptr;
         }
@@ -647,7 +692,7 @@ void CommandPaletteWnd::ExecuteCurrentSelection() {
             if (winTab->IsAboutTab()) {
                 continue;
             }
-            const char* name = winTab->filePath.Get();
+            const char* name = winTab->filePath;
             name = path::GetBaseNameTemp(name);
             if (str::Eq(name, s)) {
                 tab = winTab;
@@ -705,13 +750,24 @@ static void PositionCommandPalette(HWND hwnd, HWND hwndRelative) {
     SetWindowPos(hwnd, nullptr, r2.x, r2.y, 0, 0, SWP_NOZORDER | SWP_NOSIZE);
 }
 
+static Static* CreateStatic(HWND parent, HFONT font, const char* s) {
+    StaticCreateArgs args;
+    args.parent = parent;
+    args.font = font;
+    args.text = s;
+    auto c = new Static();
+    auto wnd = c->Create(args);
+    ReportIf(!wnd);
+    return c;
+}
+
 bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
     CollectStrings(win);
     {
         CreateCustomArgs args;
         args.visible = false;
         args.style = WS_POPUPWINDOW;
-        args.font = this->font;
+        args.font = font;
         CreateCustom(args);
     }
     if (!hwnd) {
@@ -728,7 +784,7 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
         args.isMultiLine = false;
         args.withBorder = true;
         args.cueText = "enter search term";
-        args.font = this->font;
+        args.font = font;
         auto c = new Edit();
         c->maxDx = 150;
         c->onTextChanged = std::bind(&CommandPaletteWnd::QueryChanged, this);
@@ -738,10 +794,36 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
         vbox->AddChild(c);
     }
 
+    if (false) {
+        auto hbox = new HBox();
+        hbox->alignMain = MainAxisAlign::MainCenter;
+        hbox->alignCross = CrossAxisAlign::CrossCenter;
+        auto pad = Insets{0, 4, 0, 4};
+        {
+            auto c = CreateStatic(hwnd, font, "# File History");
+            c->onClicked = mkFunc0(SwitchToFileHistory, this);
+            auto p = new Padding(c, pad);
+            hbox->AddChild(p);
+        }
+        {
+            auto c = CreateStatic(hwnd, font, "> Commands");
+            c->onClicked = mkFunc0(SwitchToCommands, this);
+            auto p = new Padding(c, pad);
+            hbox->AddChild(p);
+        }
+        {
+            auto c = CreateStatic(hwnd, font, "@ Tabs");
+            c->onClicked = mkFunc0(SwitchToTabs, this);
+            auto p = new Padding(c, pad);
+            hbox->AddChild(p);
+        }
+        vbox->AddChild(hbox);
+    }
+
     {
         ListBoxCreateArgs args;
         args.parent = hwnd;
-        args.font = this->font;
+        args.font = font;
         auto c = new ListBox();
         c->onDoubleClick = std::bind(&CommandPaletteWnd::ListDoubleClick, this);
         c->idealSizeLines = 32;
@@ -756,15 +838,7 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
     }
 
     {
-        StaticCreateArgs args;
-        args.parent = hwnd;
-        args.font = this->font;
-        args.text = "↑ ↓ to navigate      Enter to select     Esc to close";
-
-        auto c = new Static();
-        auto wnd = c->Create(args);
-        ReportIf(!wnd);
-        staticHelp = c;
+        auto c = CreateStatic(hwnd, this->font, "↑ ↓ to navigate      Enter to select     Esc to close");
         vbox->AddChild(c);
     }
 

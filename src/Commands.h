@@ -108,12 +108,12 @@ Cmd* enum (e.g. CmdOpen) and a human-readable name (not used yet).
     V(CmdOpenWithDirectoryOpus, "Open Directory In Directory Opus")                \
     V(CmdOpenWithTotalCommander, "Open Directory In Total Commander")              \
     V(CmdOpenWithDoubleCommander, "Open Directory In Double Commander")            \
-    V(CmdOpenWithAcrobat, "Open With Adobe Acrobat")                               \
-    V(CmdOpenWithFoxIt, "Open With FoxIt")                                         \
-    V(CmdOpenWithFoxItPhantom, "Open With FoxIt Phantom")                          \
-    V(CmdOpenWithPdfXchange, "Open With PdfXchange")                               \
-    V(CmdOpenWithXpsViewer, "Open With Xps Viewer")                                \
-    V(CmdOpenWithHtmlHelp, "Open With HTML Help")                                  \
+    V(CmdOpenWithAcrobat, "Open in Adobe Acrobat")                                 \
+    V(CmdOpenWithFoxIt, "Open in Foxit Reader")                                    \
+    V(CmdOpenWithFoxItPhantom, "Open in Foxit PhantomPDF")                         \
+    V(CmdOpenWithPdfXchange, "Open in PDF-XChange")                                \
+    V(CmdOpenWithXpsViewer, "Open in Microsoft Xps Viewer")                        \
+    V(CmdOpenWithHtmlHelp, "Open in Microsoft HTML Help")                          \
     V(CmdOpenWithPdfDjvuBookmarker, "Open With Pdf&Djvu Bookmarker")               \
     V(CmdOpenWithKnownExternalViewerLast, "don't use")                             \
     V(CmdOpenSelectedDocument, "Open Selected Document")                           \
@@ -237,26 +237,29 @@ enum {
 #undef DEF_CMD
 
 struct CommandArg {
-    enum class Type {
+    enum class Type : u16 {
         None,
         Bool,
         Int,
+        Float,
         String,
         Color,
     };
 
+    // arguments are a linked list for simplicity
     struct CommandArg* next = nullptr;
 
     Type type = Type::None;
 
-    // the argument in string format
-    // for String args, it's also the value
-    // for Bool, the presence means true, absence means false
+    // TODO: we have a fixed number of argument names
+    // we could use seqstrings and use u16 for arg name id
     const char* name = nullptr;
 
+    // TODO: could be a union
     const char* strVal = nullptr;
     bool boolVal = false;
     int intVal = 0;
+    float floatVal = 0.0;
     ParsedColor colorVal;
 
     CommandArg() = default;
@@ -312,8 +315,10 @@ void GetCommandsWithOrigId(Vec<CustomCommand*>& commands, int origId);
 
 constexpr const char* kCmdArgColor = "color";
 constexpr const char* kCmdArgOpenEdit = "openedit";
+constexpr const char* kCmdArgCopyToClipboard = "copytoclipboard";
 constexpr const char* kCmdArgExe = "exe";
 constexpr const char* kCmdArgURL = "url";
 constexpr const char* kCmdArgName = "name";
+constexpr const char* kCmdArgLevel = "level";
 constexpr const char* kCmdArgFilter = "filter";
 constexpr const char* kCmdArgN = "n";

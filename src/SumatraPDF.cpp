@@ -376,7 +376,7 @@ WindowTab* FindTabByFile(const char* file) {
 
     for (MainWindow* win : gWindows) {
         for (WindowTab* tab : win->Tabs()) {
-            char* fp = tab->filePath;
+            const char* fp = tab->filePath;
             if (!fp || !path::IsSame(fp, normFile)) {
                 continue;
             }
@@ -561,7 +561,7 @@ void UpdateTabFileDisplayStateForTab(WindowTab* tab) {
     MainWindow* win = tab->win;
     // TODO: this is called multiple times for each tab
     RememberDefaultWindowPosition(win);
-    char* fp = tab->filePath;
+    const char* fp = tab->filePath;
     FileState* fs = gFileHistory.FindByName(fp, nullptr);
     if (!fs) {
         return;
@@ -606,32 +606,26 @@ static void UpdateWindowRtlLayout(MainWindow* win) {
     }
 
     // https://www.microsoft.com/middleeast/msdn/mirror.aspx
-    SetRtl(win->hwndFrame, isRTL);
-
-    SetRtl(win->hwndTocBox, isRTL);
-    HWND tocBoxTitle = win->tocLabelWithClose->hwnd;
-    SetRtl(tocBoxTitle, isRTL);
-
-    SetRtl(win->hwndFavBox, isRTL);
-    HWND favBoxTitle = win->favLabelWithClose->hwnd;
-    SetRtl(favBoxTitle, isRTL);
-    win->favTreeView->SetRtl(isRTL);
-
-    SetRtl(win->hwndReBar, isRTL);
-    SetRtl(win->hwndToolbar, isRTL);
-    SetRtl(win->hwndFindEdit, isRTL);
-    SetRtl(win->hwndFindLabel, isRTL);
-    SetRtl(win->hwndTbInfoText, isRTL);
-    SetRtl(win->hwndPageLabel, isRTL);
-
-    SetRtl(win->hwndCaption, isRTL);
+    HwndSetRtl(win->hwndFrame, isRTL);
+    HwndSetRtl(win->hwndTocBox, isRTL);
+    HwndSetRtl(win->tocLabelWithClose->hwnd, isRTL);
+    HwndSetRtl(win->hwndFavBox, isRTL);
+    HwndSetRtl(win->favLabelWithClose->hwnd, isRTL);
+    HwndSetRtl(win->favTreeView->hwnd, isRTL);
+    HwndSetRtl(win->hwndReBar, isRTL);
+    HwndSetRtl(win->hwndToolbar, isRTL);
+    HwndSetRtl(win->hwndFindEdit, isRTL);
+    HwndSetRtl(win->hwndFindLabel, isRTL);
+    HwndSetRtl(win->hwndTbInfoText, isRTL);
+    HwndSetRtl(win->hwndPageLabel, isRTL);
+    HwndSetRtl(win->hwndCaption, isRTL);
     SetCaptionButtonsRtl(win->caption, isRTL);
 
     // TODO: why isn't SetWindowPos(..., SWP_FRAMECHANGED) enough?
     SendMessageW(win->hwndFrame, WM_DWMCOMPOSITIONCHANGED, 0, 0);
     RelayoutCaption(win);
     // TODO: make tab bar RTL aware
-    // SetRtl(win->tabsCtrl->hwnd, isRTL);
+    // HwndSetRtl(win->tabsCtrl->hwnd, isRTL);
 
     RelayoutNotifications(win->hwndCanvas);
 
@@ -1087,9 +1081,9 @@ static void SetFrameTitleForTab(WindowTab* tab, bool needRefresh) {
     }
     if (needRefresh && tab->ctrl) {
         // TODO: this isn't visible when tabs are used
-        s = str::FormatTemp(_TRA("[Changes detected; refreshing] %s"), tab->frameTitle.Get());
+        s = str::FormatTemp(_TRA("[Changes detected; refreshing] %s"), tab->frameTitle);
     }
-    tab->frameTitle.SetCopy(s);
+    str::ReplaceWithCopy(&tab->frameTitle, s);
 }
 
 static void UpdateUiForCurrentTab(MainWindow* win) {
@@ -1113,7 +1107,7 @@ static void UpdateUiForCurrentTab(MainWindow* win) {
     FindToggleMatchCase(win);
     UpdateFindbox(win);
 
-    HwndSetText(win->hwndFrame, win->CurrentTab()->frameTitle.CStr());
+    HwndSetText(win->hwndFrame, win->CurrentTab()->frameTitle);
 
     // TODO: match either the toolbar (if shown) or background
     HwndScheduleRepaint(win->tabsCtrl->hwnd); // TODO: was RepaintNow() ?
@@ -1381,7 +1375,7 @@ void ReloadDocument(MainWindow* win, bool autoRefresh) {
     }
 
     HwndPasswordUI pwdUI(win->hwndFrame);
-    char* path = tab->filePath;
+    const char* path = tab->filePath;
     logfa("ReloadDocument: %s, auto refresh: %d\n", path, (int)autoRefresh);
     DocController* ctrl = CreateControllerForEngineOrFile(nullptr, path, &pwdUI, win);
     // We don't allow PDF-repair if it is an autorefresh because
@@ -1390,7 +1384,7 @@ void ReloadDocument(MainWindow* win, bool autoRefresh) {
     // we postpone the reload until the next autorefresh event
     if (!ctrl && autoRefresh) {
         SetFrameTitleForTab(tab, true);
-        HwndSetText(win->hwndFrame, tab->frameTitle.CStr());
+        HwndSetText(win->hwndFrame, tab->frameTitle);
         return;
     }
 
@@ -1798,7 +1792,7 @@ MainWindow* LoadDocumentFinish(LoadArgs* args) {
 
         // logf("LoadDocument: !forceReuse, created win->CurrentTab() at 0x%p\n", win->CurrentTab());
     } else {
-        win->CurrentTab()->filePath.SetCopy(fullPath);
+        win->CurrentTab()->SetFilePath(fullPath);
 #if 0
         auto path = ToUtf8Temp(fullPath);
         logf("LoadDocument: forceReuse, set win->CurrentTab() (0x%p) filePath to '%s'\n", win->CurrentTab(), path.Get());
@@ -3190,7 +3184,7 @@ void DuplicateTabInNewWindow(WindowTab* tab) {
     // so that the file is opened in the same state
     SaveSettings();
 
-    const char* path = tab->GetPath();
+    const char* path = tab->filePath;
     ReportIf(!path);
     if (!path) {
         return;
@@ -3440,7 +3434,7 @@ static void OpenNextPrevFileInFolder(MainWindow* win, bool forward) {
     }
 
     WindowTab* tab = win->CurrentTab();
-    char* path = tab->filePath;
+    const char* path = tab->filePath;
     StrVec files = CollectNextPrevFilesIfChanged(path);
     if (files.Size() < 2) {
         return;
@@ -4413,7 +4407,9 @@ Annotation* MakeAnnotationsFromSelection(WindowTab* tab, AnnotCreateArgs* args) 
     UpdateAnnotationsList(tab->editAnnotsWindow);
 
     // copy selection to clipboard so that user can use Ctrl-V to set contents
-    CopySelectionToClipboard(win);
+    if (args->copyToClipboard) {
+        CopySelectionToClipboard(win);
+    }
     DeleteOldSelectionInfo(win, true);
     MainWindowRerender(win);
     ToolbarUpdateStateForWindow(win, true);
@@ -4702,7 +4698,6 @@ static TempStr URLEncodeTemp(const char* s) {
 constexpr const char* kUserLangStr = "${userlang}";
 constexpr const char* kSelectionStr = "${selection}";
 
-
 // https://github.com/sumatrapdfreader/sumatrapdf/issues/4368
 // for Google translate tl= arg seems to be ISO-639 lang code
 // and we seem to use ISO-3166 country code
@@ -4787,11 +4782,11 @@ static void OnMenuCustomZoom(MainWindow* win) {
         return;
     }
 
-    float zoom = win->ctrl->GetZoomVirtual();
-    if (!Dialog_CustomZoom(win->hwndFrame, win->AsChm(), &zoom)) {
+    float virtZoom = win->ctrl->GetZoomVirtual();
+    if (!Dialog_CustomZoom(win->hwndFrame, win->AsChm(), &virtZoom)) {
         return;
     }
-    SmartZoom(win, zoom, nullptr, true);
+    SmartZoom(win, virtZoom, nullptr, true);
 }
 
 // this is a directory for not important data, like downloaded symbols
@@ -4856,7 +4851,7 @@ void CopyFilePath(WindowTab* tab) {
     if (!tab) {
         return;
     }
-    const char* path = tab->GetPath();
+    const char* path = tab->filePath;
     CopyTextToClipboard(path);
 }
 
@@ -5114,11 +5109,17 @@ OpenFileInBrowser:
 
 static void SetAnnotCreateArgs(AnnotCreateArgs& args, CustomCommand* cmd) {
     if (cmd) {
-        auto col = GetCommandArg(cmd, kCmdArgColor);
-        ReportIf(!col || !col->colorVal.parsedOk);
-        if (col && col->colorVal.parsedOk) {
-            args.col = col->colorVal;
-            return;
+        {
+            auto copyToClip = GetCommandBoolArg(cmd, kCmdArgCopyToClipboard, false);
+            args.copyToClipboard = copyToClip;
+        }
+        {
+            auto col = GetCommandArg(cmd, kCmdArgColor);
+            ReportIf(!col || !col->colorVal.parsedOk);
+            if (col && col->colorVal.parsedOk) {
+                args.col = col->colorVal;
+                return;
+            }
         }
     }
     auto& a = gGlobalPrefs->annotations;
@@ -5416,9 +5417,14 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             OnMenuZoom(win, cmdId);
             break;
 
-        case CmdZoomCustom:
-            OnMenuCustomZoom(win);
-            break;
+        case CmdZoomCustom: {
+            if (cmd != nullptr) {
+                float virtZoom = cmd->firstArg->floatVal;
+                SmartZoom(win, virtZoom, nullptr, true);
+            } else {
+                OnMenuCustomZoom(win);
+            }
+        } break;
 
         case CmdSinglePageView:
             SwitchToDisplayMode(win, DisplayMode::SinglePage, true);

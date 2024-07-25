@@ -16,11 +16,11 @@ struct WindowTab {
         Document,
     };
     Type type = Type::None;
-    AutoFreeStr filePath;
+    const char* filePath = nullptr;
     MainWindow* win = nullptr;
     DocController* ctrl = nullptr;
     // text of win->hwndFrame when the tab is selected
-    AutoFreeStr frameTitle;
+    const char* frameTitle = nullptr;
     // state of the table of contents
     bool showToc = false;
     bool showTocPresentation = false;
@@ -69,7 +69,6 @@ struct WindowTab {
     ChmModel* AsChm() const;
 
     const char* GetTabTitle() const;
-    const char* GetPath() const;
     bool IsDocLoaded() const;
     void MoveDocBy(int dx, int dy) const;
     void ToggleZoom() const;

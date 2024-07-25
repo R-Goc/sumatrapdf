@@ -2,7 +2,7 @@
 
 SumatraPDF makes it easy for you to open current document in a different program.
 
-For example, if you also have Adobe Reader installed, you can use `File` menu to open PDF document you're viewing in Adobe Reader. We auto-detect some popular apps (Adobe, FoxIt, PDF X-Change etc.).
+For example, if you also have Adobe Reader installed, you can use `File` menu to open PDF document you're viewing in Adobe Reader. We auto-detect some popular apps (Adobe, Foxit, PDF X-Change etc.).
 
 You can add custom viewers using [advanced settings](https://www.sumatrapdfreader.org/settings/settings.html).
 
@@ -20,7 +20,7 @@ ExternalViewers [
     Name =
     Filter =
 
-    // since ver. 3.6:
+    // ver 3.6+:
     Key = 
   ]
 ]
@@ -30,12 +30,12 @@ Example:
 
 ```
 ExternalViewers [
-	[
-		CommandLine = "C:\Program Files\FoxitReader\FoxitReader.exe" /A page=%p "%1"
-		Name = Foxit &Reader
-		Filter = *.pdf
-        Key = Ctrl + m
-	]
+  [
+    CommandLine = "C:\Program Files\FoxitReader\FoxitReader.exe" /A page=%p "%1"
+    Name = Foxit &Reader
+    Filter = *.pdf
+    Key = Ctrl + m
+  ]
 ]
 ```
 

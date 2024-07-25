@@ -38,7 +38,7 @@ Explanation:
 - we added `Alt + O` keyboard shortcut for `CmdOpenFolder` command. It opens a folder for browsing.
 - by default SumatraPDF has `Ctrl + O` shortcut for `CmdOpen` (open a file) command. This changes the shortcut to `x`
 - by default `q` closes the document. By binding it to `CmdNone` we can disable a built-in shortcut
-- **since 3.6:**: `CmdCreateAnnotHighlight` takes a color argument (`#00ff00` is green) and boolean `openedit` argument. We re-assign `a` to create a highlight annotation with green color (different from default yellow) and to open annotations edit window (`openedit` boolean argument)
+- **ver 3.6+:**: `CmdCreateAnnotHighlight` takes a color argument (`#00ff00` is green) and boolean `openedit` argument. We re-assign `a` to create a highlight annotation with green color (different from default yellow) and to open annotations edit window (`openedit` boolean argument)
 
 ## **Format of `Key` section:**
 
@@ -61,6 +61,6 @@ You can see a [full list of commands](Commands.md) ([or in the source code](http
 
 The changes are applied right after you save settings file so that you can test changes without restarting SumatraPDF.
 
-There is no indication if you make a mistake (i.e. use invalid command or invalid syntax for `Key`).
+If a custom `Shortcut` doesn't work it could be caused by invalid command name or invalid command arguments.
 
-If the shortcut doesn’t work, double-check command name and keyboard shortcut syntax.
+We log information about unsuccessful parsing of a shortcut so [check the logs](Debugging-Sumatra.md#getting-logs) if things don't work as expected.

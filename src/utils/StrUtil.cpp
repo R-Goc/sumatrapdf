@@ -1167,10 +1167,11 @@ void DecodeInPlace(char* url) {
 // of L1 cache
 namespace seqstrings {
 
-void Next(const char*& s, int& idx) {
+void Next(const char*& s, int* idxInOut) {
+    int idx = *idxInOut;
     if (!s || !*s || idx < 0) {
         s = nullptr;
-        idx = -1;
+        *idxInOut = -1;
         return;
     }
     while (*s) {
@@ -1182,11 +1183,12 @@ void Next(const char*& s, int& idx) {
         return;
     }
     idx++;
+    *idxInOut = idx;
 }
 
 void Next(const char*& s) {
     int idxDummy = 0;
-    Next(s, idxDummy);
+    Next(s, &idxDummy);
 }
 
 // Returns nullptr if s is the same as toFind
@@ -2214,23 +2216,6 @@ int BufSet(WCHAR* dst, int cchDst, const WCHAR* src) {
 
 int BufSet(WCHAR* dst, int dstCchSize, const char* src) {
     return BufSet(dst, dstCchSize, ToWStrTemp(src));
-}
-
-int BufAppend(WCHAR* dst, int cchDst, const WCHAR* s) {
-    ReportIf(0 == cchDst);
-
-    int currDstCchLen = str::Leni(dst);
-    if (currDstCchLen + 1 >= cchDst) {
-        return 0;
-    }
-    int left = cchDst - currDstCchLen - 1;
-    int srcCchSize = str::Leni(s);
-    int toCopy = std::min(left, srcCchSize);
-
-    errno_t err = wcsncat_s(dst, cchDst, s, toCopy);
-    ReportIf(err || dst[currDstCchLen + toCopy] != '\0');
-
-    return toCopy;
 }
 
 // append as much of s at the end of dst (which must be properly null-terminated)
