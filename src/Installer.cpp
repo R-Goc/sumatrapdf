@@ -42,6 +42,8 @@ static InstallerWnd* gWnd = nullptr;
 static lzma::SimpleArchive gArchive{};
 static bool gInstallStarted = false; // a bit of a hack
 
+static PreviousInstallationInfo gPrevInstall;
+
 struct InstallerWnd {
     HWND hwnd = nullptr;
 
@@ -62,13 +64,11 @@ struct InstallerWnd {
     bool showOptions = false;
     bool failed = false;
     HANDLE hThread = nullptr;
-
-    PreviousInstallationInfo prevInstall;
 };
 
 static void ProgressStep() {
     if (!gWnd) {
-        // when extracing with -x we don't create window
+        // when extracting with -x we don't create window
         return;
     }
     gWnd->currProgress++;
@@ -193,7 +193,7 @@ static bool CreateAppShortcut(int csidl) {
 // CSIDL_COMMON_DESKTOPDIRECTORY - files and folders on desktop for all users. C:\Documents and Settings\All
 // Users\Desktop
 // CSIDL_COMMON_STARTMENU - Start menu for all users, C:\Documents and Settings\All Users\Start Menu
-// CSIDL_DESKTOP - virutal folder, desktop for current user
+// CSIDL_DESKTOP - virtual folder, desktop for current user
 // CSIDL_STARTMENU - Start menu for current user. Settings\username\Start Menu
 static int shortcutDirs[] = {CSIDL_COMMON_DESKTOPDIRECTORY, CSIDL_COMMON_STARTMENU, CSIDL_DESKTOP, CSIDL_STARTMENU};
 
@@ -232,7 +232,7 @@ static DWORD WINAPI InstallerThread(void*) {
     gWnd->failed = true;
     bool ok;
 
-    bool allUsers = gCli->allUsers;
+    bool allUsers = gCli->allUsers || gPrevInstall.allUsers;
     HKEY key = allUsers ? HKEY_LOCAL_MACHINE : HKEY_CURRENT_USER;
 
     if (!ExtractInstallerFiles(gCli->installDir)) {
@@ -252,8 +252,8 @@ static DWORD WINAPI InstallerThread(void*) {
     CopySettingsFile();
 
     // mark them as uninstalled
-    gWnd->prevInstall.searchFilterInstalled = false;
-    gWnd->prevInstall.previewInstalled = false;
+    gPrevInstall.searchFilterInstalled = false;
+    gPrevInstall.previewInstalled = false;
 
     if (gCli->withFilter) {
         RegisterSearchFilter(allUsers);
@@ -294,7 +294,8 @@ Exit:
 static void RestartElevatedForAllUsers() {
     char* exePath = GetExePathTemp();
     const char* cmdLine = "-run-install-now";
-    if (gWnd->checkboxForAllUsers->IsChecked()) {
+    bool allUsers = gCli->allUsers || (gWnd && gWnd->checkboxForAllUsers && gWnd->checkboxForAllUsers->IsChecked());
+    if (allUsers) {
         cmdLine = str::JoinTemp(cmdLine, " -all-users");
     }
     if (gCli->withFilter) {
@@ -315,11 +316,17 @@ static void RestartElevatedForAllUsers() {
     char* dir = gCli->installDir;
     cmdLine = str::JoinTemp(cmdLine, " -install-dir \"", dir);
     cmdLine = str::JoinTemp(cmdLine, "\"");
-    logf("Re-launching '%s' as elevated, args\n%s\n", exePath, cmdLine);
-    LaunchElevated(exePath, cmdLine);
+    logf("LaunchElevated('%s', '%s')\n", exePath, cmdLine);
+    bool ok = LaunchElevated(exePath, cmdLine);
+    if (!ok) {
+        logf("LaunchElevated('%s', '%s') failed!\n", exePath, cmdLine);
+        LogLastError();
+    } else {
+        logf("LaunchElevated() ok!\n");
+    }
 }
 
-// in pre-relase the window is wider to acommodate bigger version number
+// in pre-release the window is wider to accommodate bigger version number
 // TODO: instead of changing size of the window, change how we draw version number
 int GetInstallerWinDx() {
     if (gIsPreReleaseBuild) {
@@ -396,9 +403,7 @@ static void OnButtonInstall(InstallerWnd* wnd) {
     gCli->withPreview = wnd->checkboxRegisterPreview && wnd->checkboxRegisterPreview->IsChecked();
     gCli->allUsers = wnd->checkboxForAllUsers->IsChecked();
 
-    bool needsElevation = gCli->allUsers;
-    needsElevation |= (wnd->prevInstall.typ == PreviousInstallationType::Both);
-    needsElevation |= (wnd->prevInstall.typ == PreviousInstallationType::Machine);
+    bool needsElevation = gCli->allUsers || gPrevInstall.allUsers;
     if (needsElevation && !IsProcessRunningElevated()) {
         RestartElevatedForAllUsers();
         ::ExitProcess(0);
@@ -406,24 +411,32 @@ static void OnButtonInstall(InstallerWnd* wnd) {
     StartInstallation(wnd);
 }
 
-static void OnButtonExit(InstallerWnd* wnd) {
-    SendMessageW(wnd->hwnd, WM_CLOSE, 0, 0);
+static void OnButtonExit() {
+    if (gWnd) {
+        SendMessageW(gWnd->hwnd, WM_CLOSE, 0, 0);
+    } else {
+        log("OnButtonExit: gWnd is null\n");
+    }
 }
 
-static void OnButtonStartSumatra(void*) {
-    char* exePath = GetInstalledExePathTemp();
+static void StartSumatra() {
+    TempStr exePath = GetInstalledExePathTemp();
     RunNonElevated(exePath);
-    OnButtonExit(nullptr);
+}
+
+static void OnButtonStartSumatra() {
+    StartSumatra();
+    OnButtonExit();
 }
 
 static void OnInstallationFinished() {
     logf("OnInstallationFinished\n");
 
     if (gWnd->btnRunSumatra) {
-        gWnd->btnRunSumatra->SetFocus();
+        HwndSetFocus(gWnd->btnRunSumatra->hwnd);
     }
     if (gWnd->btnExit) {
-        gWnd->btnExit->SetFocus();
+        HwndSetFocus(gWnd->btnExit->hwnd);
     }
     SetForegroundWindow(gWnd->hwnd);
 
@@ -432,11 +445,11 @@ static void OnInstallationFinished() {
 
     if (gWnd->failed) {
         gWnd->btnExit = CreateDefaultButton(gWnd->hwnd, _TRA("Close"));
-        gWnd->btnExit->onClicked = mkFunc0(OnButtonExit, gWnd);
+        gWnd->btnExit->onClicked = MkFuncVoid(OnButtonExit);
         SetMsg(_TRA("Installation failed!"), COLOR_MSG_FAILED);
     } else {
         gWnd->btnRunSumatra = CreateDefaultButton(gWnd->hwnd, _TRA("Start SumatraPDF"));
-        gWnd->btnRunSumatra->onClicked = mkFunc0<void>(OnButtonStartSumatra, nullptr);
+        gWnd->btnRunSumatra->onClicked = MkFuncVoid(OnButtonStartSumatra);
         SetMsg(_TRA("Thank you! SumatraPDF has been installed."), COLOR_MSG_OK);
     }
     gMsgError = gFirstError;
@@ -445,7 +458,8 @@ static void OnInstallationFinished() {
     CloseHandle(gWnd->hThread);
 
     if (gCli->fastInstall && !gWnd->failed) {
-        OnButtonStartSumatra(nullptr);
+        StartSumatra();
+        ::ExitProcess(0);
     }
 }
 
@@ -477,7 +491,7 @@ static void UpdateUIForOptionsState(InstallerWnd* wnd) {
 
     auto btnOptions = wnd->btnOptions;
     //[ ACCESSKEY_GROUP Installer
-    //[ ACCESSKEY_ALTERNATIVE // ideally, the same accesskey is used for both
+    //[ ACCESSKEY_ALTERNATIVE // ideally, the same access key is used for both
     if (showOpts) {
         SetButtonTextAndResize(btnOptions, _TRA("Hide &Options"));
     } else {
@@ -488,7 +502,7 @@ static void UpdateUIForOptionsState(InstallerWnd* wnd) {
     //] ACCESSKEY_GROUP Installer
 
     HwndInvalidate(wnd->hwnd);
-    btnOptions->SetFocus();
+    HwndSetFocus(btnOptions->hwnd);
 }
 static void OnButtonOptions(InstallerWnd* wnd) {
     // toggle options ui
@@ -560,7 +574,7 @@ static void OnButtonBrowse(InstallerWnd* wnd) {
     auto caption = _TRA("Select the folder where SumatraPDF should be installed:");
     char* installPath = BrowseForFolderTemp(wnd->hwnd, installDir, caption);
     if (!installPath) {
-        wnd->btnBrowseDir->SetFocus();
+        HwndSetFocus(wnd->btnBrowseDir->hwnd);
         return;
     }
 
@@ -572,7 +586,7 @@ static void OnButtonBrowse(InstallerWnd* wnd) {
     }
     editDir->SetText(installPath);
     editDir->SetSelection(0, -1);
-    editDir->SetFocus();
+    HwndSetFocus(editDir->hwnd);
 }
 
 // bottom-right
@@ -590,7 +604,7 @@ static TempStr GetDefaultInstallationDirTemp(bool forAllUsers, bool ignorePrev) 
     logf("GetDefaultInstallationDir(forAllUsers=%d, ignorePrev=%d)\n", (int)forAllUsers, (int)ignorePrev);
 
     char* dir;
-    char* dirPrevInstall = gWnd->prevInstall.installationDir;
+    char* dirPrevInstall = gPrevInstall.installationDir;
 
     if (dirPrevInstall && !ignorePrev) {
         logf("  using %s from previous install\n", dirPrevInstall);
@@ -625,7 +639,7 @@ void ForAllUsersStateChanged() {
 static bool InstallerOnWmCommand(WPARAM wp) {
     switch (LOWORD(wp)) {
         case IDCANCEL:
-            OnButtonExit(nullptr);
+            OnButtonExit();
             break;
 
         default:
@@ -650,12 +664,12 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd) {
 
     HWND hwnd = wnd->hwnd;
     wnd->btnInstall = CreateDefaultButton(hwnd, _TRA("Install SumatraPDF"));
-    wnd->btnInstall->onClicked = mkFunc0(OnButtonInstall, wnd);
+    wnd->btnInstall->onClicked = MkFunc0(OnButtonInstall, wnd);
     PositionInstallButton(wnd->btnInstall);
 
     Rect r = ClientRect(hwnd);
     wnd->btnOptions = CreateDefaultButton(hwnd, _TRA("&Options"));
-    wnd->btnOptions->onClicked = mkFunc0(OnButtonOptions, wnd);
+    wnd->btnOptions->onClicked = MkFunc0(OnButtonOptions, wnd);
     auto btnSize = wnd->btnOptions->GetIdealSize();
     int margin = DpiScale(hwnd, kInstallerWinMargin);
     int x = margin;
@@ -726,7 +740,7 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd) {
     y -= (DpiScale(hwnd, 4) + margin);
 
     wnd->btnBrowseDir = CreateDefaultButton(hwnd, "&...");
-    wnd->btnBrowseDir->onClicked = mkFunc0(OnButtonBrowse, wnd);
+    wnd->btnBrowseDir->onClicked = MkFunc0(OnButtonBrowse, wnd);
 
     Size btnSize2 = wnd->btnBrowseDir->GetIdealSize();
 
@@ -779,7 +793,7 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd) {
     hwnds[nHwnds++] = wnd->btnOptions->hwnd;
     SetTabOrder(hwnds, nHwnds);
 
-    wnd->btnInstall->SetFocus();
+    HwndSetFocus(wnd->btnInstall->hwnd);
 }
 //] ACCESSKEY_GROUP Installer
 
@@ -955,7 +969,7 @@ static bool OpenEmbeddedFilesArchive() {
     }
     bool ok = LockDataResource(IDR_DLL_PAK, &gLoadedArchive);
     if (!ok) {
-        ShowNoEmbeddedFiles("No embbedded files");
+        ShowNoEmbeddedFiles("No embedded files");
         return false;
     }
 
@@ -1078,8 +1092,7 @@ int RunInstaller() {
     logf("------------- Starting SumatraPDF installation\n");
 
     gWnd = new InstallerWnd();
-    GetPreviousInstallInfo(&gWnd->prevInstall);
-
+    GetPreviousInstallInfo(&gPrevInstall);
     if (!gCli->installDir) {
         auto dir = GetDefaultInstallationDirTemp(gCli->allUsers, false);
         gCli->installDir = str::Dup(dir);
@@ -1100,18 +1113,35 @@ int RunInstaller() {
 
     gDefaultMsg = _TRA("Thank you for choosing SumatraPDF!");
 
+    // restart as admin if necessary. in non-silent mode it happens after clicking
+    // Install button
+    bool requiresSilentElevation = gCli->silent || gCli->fastInstall;
+    bool isElevated = IsProcessRunningElevated();
+    if (requiresSilentElevation && !isElevated) {
+        bool needsElevation = gCli->allUsers || gPrevInstall.allUsers;
+        if (needsElevation) {
+            logf(
+                "Restarting as elevated: gCli->silent: %d, gCli->fastInstall: %d, isElevated: %d, gCli->allUsers: %d, "
+                "prevInstall.needsElevation: %d\n",
+                (int)gCli->silent, (int)gCli->fastInstall, (int)isElevated, (int)gCli->allUsers,
+                (int)gPrevInstall.allUsers);
+            RestartElevatedForAllUsers();
+            ::ExitProcess(0);
+        }
+    }
+
     auto autoStartInstall = gCli->runInstallNow || gCli->fastInstall;
     if (!autoStartInstall) {
         // if not set explicitly, default to state from previous installation
         if (!gCli->withFilter) {
-            gCli->withFilter = gWnd->prevInstall.searchFilterInstalled;
+            gCli->withFilter = gPrevInstall.searchFilterInstalled;
         }
         if (!gCli->withPreview) {
-            gCli->withPreview = gWnd->prevInstall.previewInstalled;
+            gCli->withPreview = gPrevInstall.previewInstalled;
         }
     }
     logf(
-        "RunInstaller: gClii->silent: %d, gCli->allUsers: %d, gCli->runInstallNow: %d, gCli->withFilter: %d, "
+        "RunInstaller: gCli->silent: %d, gCli->allUsers: %d, gCli->runInstallNow: %d, gCli->withFilter: %d, "
         "gCli->withPreview: %d, gCli->fastInstall: %d\n",
         (int)gCli->silent, (int)gCli->allUsers, (int)gCli->runInstallNow, (int)gCli->withFilter, (int)gCli->withPreview,
         (int)gCli->fastInstall);
@@ -1124,13 +1154,8 @@ int RunInstaller() {
     log("After UninstallPreviewDll\n");
 
     if (gCli->silent) {
-        if (gCli->allUsers && !IsProcessRunningElevated()) {
-            log("allUsers but not elevated: re-starting as elevated\n");
-            RestartElevatedForAllUsers();
-            ::ExitProcess(0);
-        }
         gInstallStarted = true;
-        logfa("gCli->silent, before runinng InstallerThread()\n");
+        logfa("gCli->silent, before running InstallerThread()\n");
         InstallerThread(nullptr);
         ret = gWnd->failed ? 1 : 0;
     } else {
@@ -1147,11 +1172,11 @@ int RunInstaller() {
     }
 
     // re-register if we un-registered but installation was cancelled
-    if (gWnd->prevInstall.searchFilterInstalled) {
+    if (gPrevInstall.searchFilterInstalled) {
         log("re-registering search filter\n");
         RegisterSearchFilter(gCli->allUsers);
     }
-    if (gWnd->prevInstall.previewInstalled) {
+    if (gPrevInstall.previewInstalled) {
         log("re-registering previewer\n");
         RegisterPreviewer(gCli->allUsers);
     }

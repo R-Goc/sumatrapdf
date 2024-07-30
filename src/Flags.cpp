@@ -159,8 +159,8 @@ bool ParsePageRanges(const char* ranges, Vec<PageRange>& result) {
     }
 
     StrVec rangeList;
-    Split(rangeList, ranges, ",", true);
-    SortNatural(rangeList);
+    Split(&rangeList, ranges, ",", true);
+    SortNatural(&rangeList);
 
     for (char* rangeStr : rangeList) {
         int start, end;
@@ -266,19 +266,19 @@ void ParseAdobeFlags(FileArgs& i, const char* s) {
 
     // tha args can be separated with `#` or `?` or `:`
     // i.e. `foo#bar` or foo&bar` or `foo:bar`
-    Split(parts, s, "&", true);
+    Split(&parts, s, "&", true);
     if (parts.Size() == 1) {
         parts.Reset();
-        Split(parts, s, "#", true);
+        Split(&parts, s, "#", true);
     }
     if (parts.Size() == 1) {
         parts.Reset();
-        Split(parts, s, ";", true);
+        Split(&parts, s, ";", true);
     }
 
     for (char* part : parts) {
         parts2.Reset();
-        Split(parts2, part, "=", true);
+        Split(&parts2, part, "=", true);
         if (parts2.Size() != 2) {
             continue;
         }
@@ -366,6 +366,7 @@ FileArgs* ParseFileArgs(const char* path) {
 
 /* parse argument list. we assume that all unrecognized arguments are file names. */
 void ParseFlags(const WCHAR* cmdLine, Flags& i) {
+    logf("ParseFlags: cmdLine: '%s'\n", ToUtf8Temp(cmdLine));
     CmdLineArgsIter args(cmdLine);
 
     const char* param = nullptr;
@@ -376,6 +377,7 @@ void ParseFlags(const WCHAR* cmdLine, Flags& i) {
         if (arg == Arg::Unknown) {
             goto CollectFile;
         }
+        logf("ParseFlags: argName: '%s', arg: %d\n", argName, (int)arg);
 
         if (arg == Arg::Silent || arg == Arg::Silent2) {
             // silences errors happening during -print-to and -print-to-default
@@ -507,7 +509,7 @@ void ParseFlags(const WCHAR* cmdLine, Flags& i) {
             return;
         }
         param = args.EatParam();
-        // follwing args require at least one param
+        // following args require at least one param
         // if no params here, assume this is a file
         if (nullptr == param) {
             // argName starts with '-' but there are no params after that and it's not

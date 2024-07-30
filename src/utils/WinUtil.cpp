@@ -364,6 +364,7 @@ void LogLastError(DWORD err) {
     if (msg == nullptr) {
         msg = (TempStr) "";
     }
+    str::TrimWSInPlace(msg, str::TrimOpt::Both);
     logf("LogLastError: 0x%x (%d) '%s'\n", (int)err, (int)err, msg);
 }
 
@@ -967,15 +968,17 @@ void OpenPathInExplorer(const char* path) {
     CreateProcessHelper(process, args);
 }
 
-HANDLE LaunchProces(const char* exe, const char* cmdLine) {
+HANDLE LaunchProcessWithCmdLine(const char* exe, const char* cmdLine) {
     PROCESS_INFORMATION pi = {nullptr};
     STARTUPINFOW si{};
     si.cb = sizeof(si);
 
+    // first cmd-line argument should be the exe name
+    TempStr cmd = str::FormatTemp("\"%s\" %s", exe, cmdLine);
+    WCHAR* cmdLineW = ToWStrTemp(cmd);
+
     WCHAR* exeW = ToWStrTemp(exe);
-    // CreateProcess() might modify cmd line argument, so make a copy
-    // in case caller provides a read-only string
-    WCHAR* cmdLineW = ToWStrTemp(cmdLine);
+    // note: cmdLineW is modified by CreateProcessW so must be writeable
     BOOL ok = CreateProcessW(exeW, cmdLineW, nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
     if (!ok) {
         return nullptr;
@@ -985,8 +988,8 @@ HANDLE LaunchProces(const char* exe, const char* cmdLine) {
     return pi.hProcess;
 }
 
-// TODO: not sure why I decided to not use lpAplicationName arg to CreateProcessW()
-HANDLE LaunchProcess(const char* cmdLine, const char* currDir, DWORD flags) {
+// cmdLine must contain quoted exe path as first argument
+HANDLE LaunchProcessInDir(const char* cmdLine, const char* currDir, DWORD flags) {
     PROCESS_INFORMATION pi = {nullptr};
     STARTUPINFOW si{};
     si.cb = sizeof(si);
@@ -1008,7 +1011,7 @@ bool CreateProcessHelper(const char* exe, const char* args) {
         args = "";
     }
     TempStr cmd = str::FormatTemp("\"%s\" %s", exe, args);
-    AutoCloseHandle process = LaunchProcess(cmd);
+    AutoCloseHandle process = LaunchProcessInDir(cmd);
     return process != nullptr;
 }
 
@@ -1250,6 +1253,11 @@ void FillRect(HDC hdc, const Rect& rect, COLORREF col) {
 void DrawLine(HDC hdc, const Rect& rect) {
     MoveToEx(hdc, rect.x, rect.y, nullptr);
     LineTo(hdc, rect.x + rect.dx, rect.y + rect.dy);
+}
+
+// returns previously focused window
+HWND HwndSetFocus(HWND hwnd) {
+    return SetFocus(hwnd);
 }
 
 bool HwndIsFocused(HWND hwnd) {
@@ -2327,6 +2335,7 @@ bool SafeCloseHandle(HANDLE* h) {
 // It'll always run the process, might fail to run non-elevated if fails to find explorer.exe
 // Also, if explorer.exe is running elevated, it'll probably run elevated as well.
 void RunNonElevated(const char* exePath) {
+    logf("RunNonElevated: '%s'\n", exePath);
     TempStr cmd = nullptr;
     char* explorerPath = nullptr;
     WCHAR buf[MAX_PATH] = {0};
@@ -2341,7 +2350,7 @@ void RunNonElevated(const char* exePath) {
     }
     cmd = str::FormatTemp("\"%s\" \"%s\"", explorerPath, exePath);
 Run:
-    HANDLE h = LaunchProcess(cmd ? cmd : exePath);
+    HANDLE h = LaunchProcessInDir(cmd ? cmd : exePath);
     SafeCloseHandle(&h);
 }
 
@@ -2719,9 +2728,12 @@ HICON HwndGetIcon(HWND hwnd) {
 }
 
 void HwndInvalidate(HWND hwnd) {
-    if (hwnd) {
-        InvalidateRect(hwnd, nullptr, FALSE);
+    if (!hwnd) {
+        return;
     }
+    InvalidateRect(hwnd, nullptr, FALSE);
+    // send WM_PAINT right away (normally would wait for empty msg queue)
+    UpdateWindow(hwnd);
 }
 
 void HwndSetFont(HWND hwnd, HFONT font) {

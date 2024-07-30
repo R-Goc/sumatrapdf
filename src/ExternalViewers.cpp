@@ -322,7 +322,7 @@ void DetectExternalViewers() {
 }
 
 static bool filterMatchesEverything(const char* ext) {
-    return str::IsEmptyOrWhiteSpaceOnly(ext) || str::EqIS(ext, "*");
+    return str::IsEmptyOrWhiteSpace(ext) || str::EqIS(ext, "*");
 }
 
 bool CanViewWithKnownExternalViewer(WindowTab* tab, int cmdId) {
@@ -422,25 +422,6 @@ bool PathMatchFilter(const char* path, const char* filter) {
     return matches;
 }
 
-ExternalViewer* CustomExternalViewerForCmdId(int cmdId) {
-    for (auto& ev : *gGlobalPrefs->externalViewers) {
-        if (ev->cmdId == cmdId) {
-            return ev;
-        }
-    }
-    return nullptr;
-}
-
-void CreateExternalViewersCommands() {
-    for (auto& ev : *gGlobalPrefs->externalViewers) {
-        if (!ev || str::IsEmptyOrWhiteSpaceOnly(ev->commandLine)) {
-            continue;
-        }
-        auto cmd = CreateCustomCommand("", CmdViewWithExternalViewer, nullptr);
-        ev->cmdId = cmd->id;
-    }
-}
-
 // TODO: find a better file for this?
 bool RunWithExe(WindowTab* tab, const char* cmdLine, const char* filter) {
     const char* path = tab->filePath;
@@ -473,27 +454,8 @@ bool RunWithExe(WindowTab* tab, const char* cmdLine, const char* filter) {
         TempStr paramQuoted = QuoteCmdLineArgTemp(param);
         argsQuoted.Append(paramQuoted);
     }
-    TempStr params = JoinTemp(argsQuoted, " ");
+    TempStr params = JoinTemp(&argsQuoted, " ");
     return LaunchFileShell(exePath, params);
-}
-
-bool ViewWithCustomExternalViewer(WindowTab* tab, int cmdId) {
-    if (!CanAccessDisk() || !tab || !file::Exists(tab->filePath)) {
-        return false;
-    }
-
-    ExternalViewer* ev = nullptr;
-    for (auto& ev2 : *gGlobalPrefs->externalViewers) {
-        if (ev2->cmdId == cmdId) {
-            ev = ev2;
-            break;
-        }
-    }
-    if (!ev) {
-        return false;
-    }
-
-    return RunWithExe(tab, ev->commandLine, ev->filter);
 }
 
 #define DEFINE_GUID_STATIC(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8) \

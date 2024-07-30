@@ -43,7 +43,7 @@
 bool gIsStartup = false;
 StrVec gDdeOpenOnStartup;
 
-Kind kNotifGroupFindProgress = "findProgress";
+Kind kNotifFindProgress = "findProgress";
 
 // don't show the Search UI for document types that don't
 // support extracting text and/or navigating to a specific
@@ -189,21 +189,35 @@ static void ShowSearchResult(MainWindow* win, TextSel* result, bool addNavPt) {
     dm->textSelection->CopySelection(dm->textSearch);
     UpdateTextSelection(win, false);
     dm->ShowResultRectToScreen(result);
-    RepaintAsync(win, 0);
+    ScheduleRepaint(win, 0);
 }
 
 void ClearSearchResult(MainWindow* win) {
     DeleteOldSelectionInfo(win, true);
-    RepaintAsync(win, 0);
+    ScheduleRepaint(win, 0);
 }
 
-static void UpdateFindStatusTask(MainWindow* win, NotificationWnd* wnd, int current, int total) {
-    if (!MainWindowStillValid(win) || win->findCanceled) {
+struct UpdateFindStatusData {
+    MainWindow* win;
+    int current;
+    int total;
+};
+
+static void UpdateFindStatus(UpdateFindStatusData* d) {
+    AutoDelete delData(d);
+
+    auto win = d->win;
+    if (!IsMainWindowValid(win) || win->findCancelled) {
         return;
     }
-    if (!UpdateNotificationProgress(wnd, current, total)) {
+    auto wnd = GetNotificationForGroup(win->hwndCanvas, kNotifFindProgress);
+    if (!wnd) {
+        win->findCancelled = true;
+        return;
+    }
+    if (!UpdateNotificationProgress(wnd, d->current, d->total)) {
         // the search has been canceled by closing the notification
-        win->findCanceled = true;
+        win->findCancelled = true;
     }
 }
 
@@ -227,7 +241,7 @@ struct FindThreadData : public ProgressUpdateUI {
     void ShowUI(bool showProgress) {
         const LPARAM disable = (LPARAM)MAKELONG(0, 0);
 
-        auto wnd = GetNotificationForGroup(win->hwndCanvas, kNotifGroupFindProgress);
+        auto wnd = GetNotificationForGroup(win->hwndCanvas, kNotifFindProgress);
 
         if (showProgress && wnd == nullptr) {
             NotificationCreateArgs args;
@@ -236,7 +250,7 @@ struct FindThreadData : public ProgressUpdateUI {
             args.onRemoved = [](NotificationWnd* wnd) { RemoveNotification(wnd); };
 
             args.progressMsg = _TRA("Searching %d of %d...");
-            args.groupId = kNotifGroupFindProgress;
+            args.groupId = kNotifFindProgress;
             ShowNotification(args);
         }
 
@@ -252,7 +266,7 @@ struct FindThreadData : public ProgressUpdateUI {
         SendMessageW(win->hwndToolbar, TB_ENABLEBUTTON, CmdFindNext, enable);
         SendMessageW(win->hwndToolbar, TB_ENABLEBUTTON, CmdFindMatch, enable);
 
-        auto wnd = GetNotificationForGroup(win->hwndCanvas, kNotifGroupFindProgress);
+        auto wnd = GetNotificationForGroup(win->hwndCanvas, kNotifFindProgress);
 
         if (!wnd) {
             /* our notification has been replaced or closed (or never created) */;
@@ -273,32 +287,45 @@ struct FindThreadData : public ProgressUpdateUI {
         }
     }
 
-    void UpdateProgress(int current, int total) override {
-        uitask::Post(TaskFindUpdateStatus, [this, current, total] {
-            auto wnd = GetNotificationForGroup(win->hwndCanvas, kNotifGroupFindProgress);
-            if (!wnd || WasCanceled()) {
-                return;
-            }
-            UpdateFindStatusTask(win, wnd, current, total);
-        });
+    bool WasCanceled() override {
+        return !IsMainWindowValid(win) || win->findCancelled;
     }
 
-    bool WasCanceled() override {
-        return !MainWindowStillValid(win) || win->findCanceled;
+    void UpdateProgress(int current, int total) override {
+        auto data = new UpdateFindStatusData;
+        data->win = this->win;
+        data->current = current;
+        data->total = total;
+        auto fn = MkFunc0<UpdateFindStatusData>(UpdateFindStatus, data);
+        uitask::Post(fn, "UpdateFindStatus");
     }
 };
 
-static void FindEndTask(MainWindow* win, FindThreadData* ftd, TextSel* textSel, bool wasModifiedCanceled,
-                        bool loopedAround) {
-    if (!MainWindowStillValid(win)) {
-        delete ftd;
+struct FindEndTaskData {
+    MainWindow* win;
+    FindThreadData* ftd;
+    TextSel* textSel;
+    bool wasModifiedCanceled;
+    bool loopedAround;
+};
+
+static void FindEndTask(FindEndTaskData* d) {
+    auto win = d->win;
+    auto ftd = d->ftd;
+    auto textSel = d->textSel;
+    auto wasModifiedCanceled = d->wasModifiedCanceled;
+    auto loopedAround = d->loopedAround;
+
+    AutoDelete delData(d);
+    AutoDelete delFtd(ftd);
+
+    if (!IsMainWindowValid(win)) {
         return;
     }
     if (win->findThread != ftd->thread) {
         // Race condition: FindTextOnThread/AbortFinding was
         // called after the previous find thread ended but
         // before this FindEndTask could be executed
-        delete ftd;
         return;
     }
     if (!win->IsDocLoaded()) {
@@ -312,11 +339,10 @@ static void FindEndTask(MainWindow* win, FindThreadData* ftd, TextSel* textSel, 
         ftd->HideUI(false, !wasModifiedCanceled);
     }
     win->findThread = nullptr;
-    delete ftd;
 }
 
-static DWORD WINAPI FindThread(LPVOID data) {
-    FindThreadData* ftd = (FindThreadData*)data;
+static DWORD WINAPI FindThread(LPVOID d) {
+    FindThreadData* ftd = (FindThreadData*)d;
     ReportIf(!(ftd && ftd->win && ftd->win->ctrl && ftd->win->ctrl->AsFixed()));
     MainWindow* win = ftd->win;
     DisplayModel* dm = win->AsFixed();
@@ -339,7 +365,7 @@ static DWORD WINAPI FindThread(LPVOID data) {
     }
 
     bool loopedAround = false;
-    if (!win->findCanceled && !rect) {
+    if (!win->findCancelled && !rect) {
         // With no further findings, start over (unless this was a new search from the beginning)
         int startPage = (TextSearchDirection::Forward == ftd->direction) ? 1 : ctrl->PageCount();
         if (!ftd->wasModified || ctrl->CurrentPageNo() != startPage) {
@@ -355,11 +381,21 @@ static DWORD WINAPI FindThread(LPVOID data) {
         Sleep(1);
     }
 
-    if (!win->findCanceled && rect) {
-        uitask::Post(TaskFindEnd1, [=] { FindEndTask(win, ftd, rect, ftd->wasModified, loopedAround); });
+    auto data = new FindEndTaskData;
+    data->win = win;
+    data->ftd = ftd;
+    data->textSel = nullptr;
+    data->loopedAround = false;
+
+    if (!win->findCancelled && rect) {
+        data->textSel = rect;
+        data->wasModifiedCanceled = ftd->wasModified;
+        data->loopedAround = loopedAround;
     } else {
-        uitask::Post(TaskFindEnd2, [=] { FindEndTask(win, ftd, nullptr, win->findCanceled, false); });
+        data->wasModifiedCanceled = win->findCancelled;
     }
+    auto fn = MkFunc0<FindEndTaskData>(FindEndTask, data);
+    uitask::Post(fn, "TaskFindEnd");
     DestroyTempAllocator();
     return 0;
 }
@@ -369,13 +405,13 @@ bool AbortFinding(MainWindow* win, bool hideMessage) {
     bool res = false;
     if (win->findThread) {
         res = true;
-        win->findCanceled = true;
+        win->findCancelled = true;
         WaitForSingleObject(win->findThread, INFINITE);
     }
-    win->findCanceled = false;
+    win->findCancelled = false;
 
     if (hideMessage) {
-        bool didRemove = RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupFindProgress);
+        bool didRemove = RemoveNotificationsForGroup(win->hwndCanvas, kNotifFindProgress);
         if (didRemove) {
             res = true;
         }
@@ -538,7 +574,7 @@ bool OnInverseSearch(MainWindow* win, int x, int y) {
     if (!str::IsEmpty(cmdLine.Get())) {
         // resolve relative paths with relation to SumatraPDF.exe's directory
         char* appDir = GetExeDirTemp();
-        AutoCloseHandle process(LaunchProcess(cmdLine, appDir));
+        AutoCloseHandle process(LaunchProcessInDir(cmdLine, appDir));
         if (!process) {
             ShowNotification(args);
         }
@@ -577,7 +613,7 @@ void ShowForwardSearchResult(MainWindow* win, const char* fileName, int line, in
             win->ctrl->GoToPage(page, true);
         }
         if (!dm->ShowResultRectToScreen(&res)) {
-            RepaintAsync(win, 0);
+            ScheduleRepaint(win, 0);
         }
         if (IsIconic(win->hwndFrame)) {
             ShowWindowAsync(win->hwndFrame, SW_RESTORE);

@@ -127,7 +127,7 @@ static DWORD WINAPI UninstallerThread(void*) {
     return 0;
 }
 
-static void OnButtonUninstall(void*) {
+static void OnButtonUninstall() {
     if (!CheckInstallUninstallPossible()) {
         return;
     }
@@ -140,7 +140,7 @@ static void OnButtonUninstall(void*) {
     hThread = CreateThread(nullptr, 0, UninstallerThread, nullptr, 0, nullptr);
 }
 
-static void OnButtonExit(void*) {
+static void OnButtonExit() {
     SendMessageW(gHwndFrame, WM_CLOSE, 0, 0);
 }
 
@@ -148,7 +148,7 @@ void OnUninstallationFinished() {
     delete gButtonUninstaller;
     gButtonUninstaller = nullptr;
     gButtonExit = CreateDefaultButton(gHwndFrame, _TRA("Close"));
-    gButtonExit->onClicked = mkFunc0<void>(OnButtonExit, nullptr);
+    gButtonExit->onClicked = MkFuncVoid(OnButtonExit);
     SetMsg(_TRA("SumatraPDF has been uninstalled."), gMsgError ? COLOR_MSG_FAILED : COLOR_MSG_OK);
     gMsgError = gFirstError;
     HwndInvalidate(gHwndFrame);
@@ -159,7 +159,7 @@ void OnUninstallationFinished() {
 static bool UninstallerOnWmCommand(WPARAM wp) {
     switch (LOWORD(wp)) {
         case IDCANCEL:
-            OnButtonExit(nullptr);
+            OnButtonExit();
             break;
 
         default:
@@ -185,7 +185,7 @@ static void CreateUninstallerWindow() {
     HwndResizeClientSize(gHwndFrame, dx, dy);
 
     gButtonUninstaller = CreateDefaultButton(gHwndFrame, _TRA("Uninstall SumatraPDF"));
-    gButtonUninstaller->onClicked = mkFunc0<void>(OnButtonUninstall, nullptr);
+    gButtonUninstaller->onClicked = MkFuncVoid(OnButtonUninstall);
 }
 
 static void ShowUsage() {
@@ -242,7 +242,7 @@ static LRESULT CALLBACK WndProcUninstallerFrame(HWND hwnd, UINT msg, WPARAM wp, 
         case WM_APP_INSTALLATION_FINISHED: {
             OnUninstallationFinished();
             if (gButtonExit) {
-                gButtonExit->SetFocus();
+                HwndSetFocus(gButtonExit->hwnd);
             }
             SetForegroundWindow(hwnd);
             break;
@@ -369,11 +369,25 @@ static void RelaunchMaybeElevatedFromTempDirectory(Flags* cli) {
     if (cli->allUsers) {
         cmdLine.Append(" -all-users");
     }
-    logf("  re-launching '%s' with args '%s' as elevated\n", installerTempPath, cmdLine.Get());
+    char* cl = cmdLine.CStr();
     if (cli->allUsers) {
-        LaunchElevated(installerTempPath, cmdLine.Get());
+        logf("LaunchElevated('%s', '%s')\n", installerTempPath, cl);
+        ok = LaunchElevated(installerTempPath, cl);
+        if (!ok) {
+            logf("LaunchElevated() failed to launch '%s' '%s'\n", installerTempPath, cl);
+            LogLastError();
+        } else {
+            logf("LaunchElevated() launched '%s' '%s' ok!\n", installerTempPath, cl);
+        }
     } else {
-        LaunchProcess(installerTempPath, cmdLine.Get());
+        logf("LaunchProcessWithCmdLine('%s' '%s')\n", installerTempPath, cl);
+        HANDLE h = LaunchProcessWithCmdLine(installerTempPath, cl);
+        if (!h) {
+            logf("LaunchProcessWithCmdLine() failed to launch '%s' '%s'\n", installerTempPath, cl);
+            LogLastError();
+        } else {
+            logf("LaunchProcessWithCmdLine() launched '%s' '%s' ok!\n", installerTempPath, cl);
+        }
     }
     ::ExitProcess(0);
 }
@@ -410,8 +424,7 @@ static void InitSelfDelete() {
     }
     logf("Created self-delete batch script '%s'\n", scriptPath);
     TempStr cmdLine = str::FormatTemp("cmd.exe /C \"%s\"", scriptPath);
-    DWORD flags = CREATE_NO_WINDOW;
-    LaunchProcess(cmdLine, nullptr, flags);
+    LaunchProcessInDir(cmdLine, nullptr, CREATE_NO_WINDOW);
 }
 
 int RunUninstaller() {
@@ -433,6 +446,19 @@ int RunUninstaller() {
     TempStr cmdLine = ToUtf8Temp(GetCommandLineW());
     TempStr exePath = GetExePathTemp();
     logf("Running uninstaller '%s' with args '%s' for '%s'\n", exePath, cmdLine, instDir);
+
+    if (false) {
+        const char* path = "C:\\Users\\kjk\\AppData\\Local\\Temp\\Sumatra-Uninstaller.exe";
+        const char* cl = "-uninstall";
+        logf("LaunchProcessWithCmdLine('%s' '%s')\n", path, cl);
+        HANDLE h = LaunchProcessWithCmdLine(path, cl);
+        if (!h) {
+            logf("LaunchProcessWithCmdLine() failed to launch '%s' '%s'\n", path, cl);
+            LogLastError();
+        } else {
+            logf("LaunchProcessWithCmdLine() launched '%s' '%s' ok!\n", path, cl);
+        }
+    }
 
     int ret = 1;
     auto installerExists = file::Exists(exePath);

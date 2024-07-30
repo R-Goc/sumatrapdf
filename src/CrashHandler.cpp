@@ -258,7 +258,7 @@ static bool DownloadAndUnzipSymbols(const char* symDir) {
         log("DownloadAndUnzipSymbols: couldn't download symbols\n");
         return false;
     }
-    if (!HttpRspOk(&rsp)) {
+    if (!IsHttpRspOk(&rsp)) {
         log("DownloadAndUnzipSymbols: HttpRspOk() returned false\n");
     }
 
@@ -328,9 +328,9 @@ void _uploadDebugReport(const char* condStr, bool isCrash, bool captureCallstack
     // so only allow once submission in a given session
     static bool didSubmitDebugReport = false;
 
-    log("_uploadDebugReport");
+    loga("_uploadDebugReport");
     if (condStr) {
-        log(condStr);
+        loga(condStr);
     }
 
     // don't send report if this is me debugging
@@ -364,8 +364,8 @@ void _uploadDebugReport(const char* condStr, bool isCrash, bool captureCallstack
         return;
     }
 
-    logf("_uploadDebugReport: isCrash: %d, captureCallstack: %d, gSymbolPath: '%s'\n", (int)isCrash,
-         (int)captureCallstack, gSymbolPath);
+    logfa("_uploadDebugReport: isCrash: %d, captureCallstack: %d, gSymbolPath: '%s'\n", (int)isCrash,
+          (int)captureCallstack, gSymbolPath);
 
     if (captureCallstack) {
         // we proceed even if we fail to download symbols
@@ -374,7 +374,7 @@ void _uploadDebugReport(const char* condStr, bool isCrash, bool captureCallstack
 
     auto s = BuildCrashInfoText(condStr, isCrash, captureCallstack);
     if (str::IsEmpty(s)) {
-        log("_uploadDebugReport(): skipping because !BuildCrashInfoText()\n");
+        loga("_uploadDebugReport(): skipping because !BuildCrashInfoText()\n");
         return;
     }
 
@@ -382,8 +382,8 @@ void _uploadDebugReport(const char* condStr, bool isCrash, bool captureCallstack
     UploadCrashReport(d);
     SaveCrashInfo(d);
     // gCrashHandlerAllocator->Free((const void*)d.data());
-    log(s);
-    log("_uploadDebugReport() finished\n");
+    loga(s);
+    loga("_uploadDebugReport() finished\n");
 }
 #endif
 

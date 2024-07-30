@@ -201,7 +201,23 @@ StrSpan::StrSpan(const char* s) {
 
 StrSpan::StrSpan(const char* s, int sLen) {
     d = (char*)s;
-    size = sLen;
+    if (sLen < 0) {
+        size = str::Leni(s);
+    } else {
+        size = sLen;
+    }
+}
+
+bool IsEqual(const StrSpan& d1, const StrSpan& d2) {
+    if (d1.Len() != d2.Len()) {
+        return false;
+    }
+    if (d1.Len() == 0) {
+        return true;
+    }
+    ReportIf(!d1.d || !d2.d);
+    int res = memcmp(d1.d, d2.d, d1.Len());
+    return res == 0;
 }
 
 namespace str {
@@ -1109,7 +1125,7 @@ int CmpNatural(const char* a, const char* b) {
     return diff;
 }
 
-bool IsEmptyOrWhiteSpaceOnly(const char* s) {
+bool IsEmptyOrWhiteSpace(const char* s) {
     if (!s) {
         return true;
     }

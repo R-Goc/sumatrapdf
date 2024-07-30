@@ -9,19 +9,13 @@ You can control SumatraPDF with commands:
 
 :search:
 
-## **File**
+## File
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette,Notes
 CmdClose,"Ctrl + W, Ctrl + F4",Close Document,
 CmdCloseCurrentDocument,q,Close Current Document,
-CmdCloseAllTabs,,Close All Tabs,ver 3.6+
-CmdCloseTabsToTheLeft,,Close Tabs To The Left,ver 3.6+
-CmdCloseTabsToTheRight,,Close Tabs To The Right,ver 3.6+
-CmdCloseOtherTabs,,Close Other Tabs,ver 3.6+
 CmdCommandPalette,Ctrl + K,Command Palette,
-CmdCommandPaletteNoFiles,Shift + Ctrl + K,Command Palette No Files,
-CmdCommandPaletteOnlyTabs,Alt + K,Command Palette Only Tabs,ver 3.5+
 CmdDuplicateInNewWindow,Shift + Ctrl + N,Open Current Document In New Window,
 CmdExit,Ctrl + Q,Exit Application,
 CmdMoveFrameFocus,F6,Move Frame Focus,
@@ -56,7 +50,7 @@ CmdCopyFilePath,,Copy File Path,ver 3.5+
 CmdDeleteFile,,Delete Currently Opened File, ver 3.6+
 ```
 
-## **Search**
+## Search
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
@@ -68,7 +62,7 @@ CmdFindPrev,Shift + F3,Find Previous
 CmdFindPrevSel,Shift + Ctrl + F3,Find Previous Selection
 ```
 
-## **Viewing**
+## Viewing
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette,Notes
@@ -85,14 +79,25 @@ CmdToggleMenuBar,F9,Toggle Menu Bar,
 CmdTogglePageInfo,Shift + i,Show / Hide Current Page Number,
 CmdToggleScrollbars,,Toggle Scrollbars,
 CmdToggleToolbar,F8,Toggle Toolbar,
-CmdNextTab,Ctrl + Right,Next Tab,
-CmdPrevTab,Ctrl + Left,Previous Tab,
 CmdToggleFrequentlyRead,,Toggle Frequently Read,ver 3.5+
 CmdSelectNextTheme,,Select Next Theme,ver 3.5+
 CmdToggleLinks,,Toggle Show Links, Toggle drawing blue rectangle around links
 ```
 
-## **Navigation**
+## Tabs
+
+```commands
+Command IDs,Keyboard shortcuts,Command Palette,Notes
+CmdCloseAllTabs,,Close All Tabs,ver 3.6+
+CmdCloseTabsToTheLeft,,Close Tabs To The Left,ver 3.6+
+CmdCloseTabsToTheRight,,Close Tabs To The Right,ver 3.6+
+CmdCloseOtherTabs,,Close Other Tabs,ver 3.6+
+CmdNextTab,Ctrl + PageUp,Next Tab,
+CmdPrevTab,Ctrl + PageDown,Previous Tab,
+CmdSmartTabSwitch,Ctrl + Tab,Smart Tab Switch,ver 3.6+
+```
+
+## Navigation
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
@@ -108,14 +113,14 @@ CmdScrollLeftPage,Shift + Left,Scroll Left By Page
 CmdScrollRightPage,Shift + Right,Scroll Right By Page
 CmdGoToFirstPage,"Ctrl + Home, Home",First Page
 CmdGoToLastPage,"Ctrl + End, End",Last Page
-CmdGoToPrevPage,"p, Ctrl + PageUp",Previous Page
-CmdGoToNextPage,"n, Ctrl + PageDown",Next Page
+CmdGoToPrevPage,"p",Previous Page
+CmdGoToNextPage,"n",Next Page
 CmdGoToPage,"g, Ctrl + G",Go to Page...
 CmdNavigateBack,"Alt + Left, Backspace",Navigate Back
 CmdNavigateForward,"Alt + Right, Shift + Backspace",Navigate Forward
 ```
 
-## **Favorite**
+## Favorites
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
@@ -124,7 +129,7 @@ CmdFavoriteDel,,Delete Favorite
 CmdFavoriteToggle,,Toggle Favorites
 ```
 
-## **Presentation**
+## Presentation
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
@@ -133,7 +138,7 @@ CmdPresentationBlackBackground,.,Presentation Black Background
 CmdPresentationWhiteBackground,w,Presentation White Background
 ```
 
-## **Annotation**
+## Annotations
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette,Notes
@@ -161,7 +166,7 @@ CmdSaveAnnotations,Shift + Ctrl + S,Save Annotations to existing PDF,
 CmdSaveAnnotationsNewFile,,Save Annotations to new PDF,ver 3.6+
 ```
 
-## **Zoom menu**
+## Zoom
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette,Notes
@@ -190,7 +195,7 @@ CmdZoom8_33,,Zoom: 8.33%,
 CmdZoom800,,Zoom: 800%,
 ```
 
-## **External app**
+## External app
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette,Notes
@@ -216,7 +221,7 @@ CmdInvokeInverseSearch,,Invoke Inverse Search,ver 3.6+
 
 ```
 
-## **System**
+## System
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
@@ -228,10 +233,10 @@ CmdClearHistory,,Clear History
 CmdContributeTranslation,,Contribute Translation
 CmdForgetSelectedDocument,,Remove Selected Document From History
 CmdOptions,,Options...
-CmdShowLog,,Show Log
+CmdShowLog,,Show Logs
 ```
 
-## **Help**
+## Help
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
@@ -242,7 +247,7 @@ CmdHelpOpenManualOnWebsite,,Help: Manual On Website
 CmdHelpVisitWebsite,,Help: SumatraPDF Website
 ```
 
-## **Debug**
+## Debug
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
@@ -254,7 +259,7 @@ CmdDebugTestApp,,Debug: Test App
 CmdNone,,Do nothing
 ```
 
-## **Deprecated or internal**
+## Deprecated or internal
 
 ```commands
 Command IDs,Keyboard shortcuts,Command Palette
@@ -340,7 +345,8 @@ Arguments:
 
 - `color` : default, color
 - `openedit` : boolean, `false` if not given
-- `copytoclipboard` : boolean, `false` if not given. For higlihgt/underline etc. annotations, copies the text of annotaiton to clipboard. This used to be default behavior for built-in `a` etc. keyboard shortcuts but now it has to be explicitly chosen.
+- `copytoclipboard` : boolean, `false` if not given. For highlight/underline/squiggly/strikeout  annotations, copies the selection (text of annotation) to clipboard. This used to be default behavior for built-in `a` etc. keyboard shortcuts but now it has to be explicitly chosen.
+- `setcontent` : boolean, false if not give. For highlight/underline/squiggly/strikeout sets content of annotation to the selection (text of annotation)
 
 Use cases: 
 - change default color for annotations
@@ -368,7 +374,7 @@ Arguments:
 - a number describing zoom level in percent e.g.:
     - `50` or `50%` means 50% zoom
     - `125` means 125% zoom
-- one of the virtual zoom levels:
+- a virtual zoom level:
   - `actual size` (100% zoom level)
   - `fit page`
   - `fit width`
@@ -381,6 +387,30 @@ Shortcuts [
     [
         Cmd = CmdZoomCustom 50%
         Key = z
+    ]
+]
+```
+
+
+## `CmdCommandPalette`
+
+**Ver 3.6+**
+
+Argument:
+- `mode` : default, optional string, Values:
+  - `@` for opened files (tabs)
+  - `#` for history of files
+  - `>` for commands
+
+Without an argument it defaults to `>`.
+
+Example:
+
+```
+Shortcuts [
+    [
+        Cmd = CmdCommandPalette #
+        Key = Ctrl + h
     ]
 ]
 ```

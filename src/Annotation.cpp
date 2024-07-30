@@ -215,7 +215,7 @@ const char* Author(Annotation* annot) {
         fz_report_error(ctx);
         s = nullptr;
     }
-    if (!s || str::IsEmptyOrWhiteSpaceOnly(s)) {
+    if (!s || str::IsEmptyOrWhiteSpace(s)) {
         return {};
     }
     return s;
@@ -1019,7 +1019,7 @@ Annotation* EngineMupdfCreateAnnotation(EngineBase* engine, int pageNo, PointF p
                 // if "(none)" we don't set it
                 if (!str::Eq(defAuthor, "(none)")) {
                     const char* author = getuser();
-                    if (!str::IsEmptyOrWhiteSpaceOnly(defAuthor)) {
+                    if (!str::IsEmptyOrWhiteSpace(defAuthor)) {
                         author = defAuthor;
                     }
                     pdf_set_annot_author(ctx, annot, author);
@@ -1027,6 +1027,14 @@ Annotation* EngineMupdfCreateAnnotation(EngineBase* engine, int pageNo, PointF p
             }
 
             switch (typ) {
+                case AnnotationType::Highlight:
+                case AnnotationType::Underline:
+                case AnnotationType::Squiggly:
+                case AnnotationType::StrikeOut: {
+                    if (!str::IsEmptyOrWhiteSpace(args->content)) {
+                        pdf_set_annot_contents(ctx, annot, args->content);
+                    }
+                } break;
                 case AnnotationType::Text:
                 case AnnotationType::FreeText:
                 case AnnotationType::Stamp:

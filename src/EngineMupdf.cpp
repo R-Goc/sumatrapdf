@@ -1412,7 +1412,7 @@ static void EnsureLabelsUnique(StrVec* labels) {
     }
     // ensure that all page labels are unique (by appending a number to duplicates)
     StrVec dups(*labels);
-    Sort(dups);
+    Sort(&dups);
     int nDups = dups.Size();
     for (int i = 1; i < nDups; i++) {
         char* s = dups.At(i);
@@ -3301,14 +3301,14 @@ TempStr EngineMupdf::ExtractFontListTemp() {
             continue;
         }
         char* fontName = info.LendData();
-        AppendIfNotExists(fonts, fontName);
+        AppendIfNotExists(&fonts, fontName);
     }
     if (fonts.Size() == 0) {
         return nullptr;
     }
 
-    SortNatural(fonts);
-    return JoinTemp(fonts, "\n");
+    SortNatural(&fonts);
+    return JoinTemp(&fonts, "\n");
 }
 
 // clang-format off
@@ -3380,7 +3380,7 @@ TempStr EngineMupdf::GetPropertyTemp(const char* name) {
         if (fstruct.Size() == 0) {
             return nullptr;
         }
-        return JoinTemp(fstruct, ",");
+        return JoinTemp(&fstruct, ",");
     }
 
     if (str::Eq(kPropUnsupportedFeatures, name)) {

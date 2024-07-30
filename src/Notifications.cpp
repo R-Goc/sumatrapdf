@@ -27,8 +27,8 @@ using Gdiplus::Graphics;
 using Gdiplus::Pen;
 using Gdiplus::SolidBrush;
 
-Kind kNotifGroupCursorPos = "cursorPosHelper";
-Kind kNotifGroupActionResponse = "responseToAction";
+Kind kNotifCursorPos = "cursorPosHelper";
+Kind kNotifActionResponse = "responseToAction";
 
 constexpr int kPadding = 6;
 constexpr int kTopLeftMargin = 8;
@@ -181,7 +181,7 @@ HWND NotificationWnd::Create(const NotificationCreateArgs& args) {
         wndRemovedCb = [](NotificationWnd* wnd) { NotifsRemoveNotification(wnd); };
     }
     // TODO: make shrinkLimit an arg
-    if (kNotifGroupCursorPos == args.groupId) {
+    if (kNotifCursorPos == args.groupId) {
         shrinkLimit = 0.7f;
     }
 
@@ -234,7 +234,7 @@ void NotificationWnd::UpdateMessage(const char* msg, int timeoutMs, bool highlig
     this->timeoutMs = timeoutMs;
     HwndSetRtl(hwnd, IsUIRightToLeft());
     Layout(msg);
-    InvalidateRect(hwnd, nullptr, FALSE);
+    HwndInvalidate(hwnd);
     if (timeoutMs != 0) {
         SetTimer(hwnd, kNotifTimerTimeoutId, timeoutMs, nullptr);
     }
@@ -387,13 +387,23 @@ void NotificationWnd::OnPaint(HDC hdcIn, PAINTSTRUCT* ps) {
     buffer.Flush(hdcIn);
 }
 
+static void NotifRemove(NotificationWnd* wnd) {
+    wnd->wndRemovedCb(wnd);
+}
+
+static void NotifDelete(NotificationWnd* wnd) {
+    delete wnd;
+}
+
 void NotificationWnd::OnTimer(UINT_PTR timerId) {
     ReportIf(kNotifTimerTimeoutId != timerId);
     // TODO a better way to delete myself
     if (wndRemovedCb) {
-        uitask::Post(TaskNotifOnTimerRemove, [this] { wndRemovedCb(this); });
+        auto fn = MkFunc0<NotificationWnd>(NotifRemove, this);
+        uitask::Post(fn, "TaskNotifOnTimerRemove");
     } else {
-        uitask::Post(TaskNotifOnTimerDelete, [this] { delete this; });
+        auto fn = MkFunc0<NotificationWnd>(NotifDelete, this);
+        uitask::Post(fn, "TaskNotifOnTimerDelete");
     }
 }
 
@@ -430,9 +440,11 @@ LRESULT NotificationWnd::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         if (rClose.Contains(pt)) {
             // TODO a better way to delete myself
             if (wndRemovedCb) {
-                uitask::Post(TaskNotifWndProcRemove, [this] { wndRemovedCb(this); });
+                auto fn = MkFunc0<NotificationWnd>(NotifRemove, this);
+                uitask::Post(fn, "TaskNotifWndProcRemove");
             } else {
-                uitask::Post(TaskNotifWndProcDelete, [this] { delete this; });
+                auto fn = MkFunc0<NotificationWnd>(NotifDelete, this);
+                uitask::Post(fn, "TaskNotifWndProcDelete");
             }
             return 0;
         }

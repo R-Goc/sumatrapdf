@@ -108,8 +108,8 @@ bool gShowFrameRate = false;
 // embedded (e.g. in a web browser)
 const char* gPluginURL = nullptr; // owned by Flags in WinMain
 
-static Kind kNotifGroupPersistentWarning = "persistentWarning";
-static Kind kNotifGroupPageInfo = "pageInfoHelper";
+static Kind kNotifPersistentWarning = "persistentWarning";
+static Kind kNotifPageInfo = "pageInfoHelper";
 static Kind kNotifZoom = "zoom";
 
 HBITMAP gBitmapReloadingCue;
@@ -202,8 +202,8 @@ void InitializePolicies(bool restrict) {
     TempStr restrictPath = GetPathInExeDirTemp(kRestrictionsFileName);
     if (!file::Exists(restrictPath)) {
         gPolicyRestrictions = Perm::All;
-        Split(gAllowedLinkProtocols, DEFAULT_LINK_PROTOCOLS, ",");
-        Split(gAllowedFileTypes, DEFAULT_FILE_PERCEIVED_TYPES, ",");
+        Split(&gAllowedLinkProtocols, DEFAULT_LINK_PROTOCOLS, ",");
+        Split(&gAllowedFileTypes, DEFAULT_FILE_PERCEIVED_TYPES, ",");
         return;
     }
 
@@ -215,21 +215,17 @@ void InitializePolicies(bool restrict) {
         return;
     }
 
-    static struct {
-        const char* name;
-        Perm perm;
-    } policies[] = {
-        {"InternetAccess", Perm::InternetAccess},     {"DiskAccess", Perm::DiskAccess},
-        {"SavePreferences", Perm::SavePreferences},   {"RegistryAccess", Perm::RegistryAccess},
-        {"PrinterAccess", Perm::PrinterAccess},       {"CopySelection", Perm::CopySelection},
-        {"FullscreenAccess", Perm::FullscreenAccess},
-    };
+    static Perm perms[] = {Perm::InternetAccess, Perm::DiskAccess,    Perm::SavePreferences, Perm::RegistryAccess,
+                           Perm::PrinterAccess,  Perm::CopySelection, Perm::FullscreenAccess};
+    static SeqStrings permNames =
+        "InternetAccess\0DiskAccess\0SavePreferences\0RegistryAccess\0PrinterAccess\0CopySelection\0FullscreenAccess\0";
 
     // enable policies as indicated in sumatrapdfrestrict.ini
-    for (size_t i = 0; i < dimof(policies); i++) {
-        const char* value = polsec->GetValue(policies[i].name);
-        if (value && atoi(value) != 0) {
-            gPolicyRestrictions = gPolicyRestrictions | policies[i].perm;
+    for (int i = 0; i < dimofi(perms); i++) {
+        const char* name = seqstrings::IdxToStr(permNames, i);
+        const char* val = polsec->GetValue(name);
+        if (val && atoi(val) != 0) {
+            gPolicyRestrictions = gPolicyRestrictions | perms[i];
         }
     }
 
@@ -240,14 +236,14 @@ void InitializePolicies(bool restrict) {
             char* protocols = str::DupTemp(value);
             str::ToLowerInPlace(protocols);
             str::TransCharsInPlace(protocols, " :;", ",,,");
-            Split(gAllowedLinkProtocols, protocols, ",", true);
+            Split(&gAllowedLinkProtocols, protocols, ",", true);
         }
         value = polsec->GetValue("SafeFileTypes");
         if (value != nullptr) {
             char* protocols = str::DupTemp(value);
             str::ToLowerInPlace(protocols);
             str::TransCharsInPlace(protocols, " :;", ",,,");
-            Split(gAllowedFileTypes, protocols, ",", true);
+            Split(&gAllowedFileTypes, protocols, ",", true);
         }
     }
 }
@@ -293,7 +289,7 @@ bool SumatraLaunchBrowser(const char* url) {
         return SendMessageW(parent, WM_COPYDATA, (WPARAM)plugin, (LPARAM)&cds);
     }
 
-    if (!HasPermission(Perm::DiskAccess)) {
+    if (!CanAccessDisk()) {
         return false;
     }
 
@@ -329,7 +325,7 @@ bool DocIsSupportedFileType(Kind kind) {
 // lets the shell open a file of any supported perceived type
 // in the default application for opening such files
 bool OpenFileExternally(const char* path) {
-    if (!HasPermission(Perm::DiskAccess) || gPluginMode) {
+    if (!CanAccessDisk() || gPluginMode) {
         return false;
     }
 
@@ -699,7 +695,7 @@ struct ControllerCallbackHandler : DocControllerCallback {
     ~ControllerCallbackHandler() override = default;
 
     void Repaint() override {
-        RepaintAsync(win, 0);
+        ScheduleRepaint(win, 0);
     }
     void PageNoChanged(DocController* ctrl, int pageNo) override;
     void ZoomChanged(DocController* ctrl, float zoomVirtual) override;
@@ -784,7 +780,8 @@ static void CreateThumbnailForFile(MainWindow* win, FileState* ds) {
     logf("CreateThumbnailForFile: filePath: '%s', 0x%p, d: 0x%p\n", filePath, filePath, d);
     win->ctrl->CreateThumbnail(size, [d](RenderedBitmap* bmp) {
         d->bmp = bmp;
-        uitask::Post(TaskSetThumbnail, [d] { CreateThumbnailFinish(d); });
+        auto fn = MkFunc0<CreateThumbnailData>(CreateThumbnailFinish, d);
+        uitask::Post(fn, "TaskSetThumbnail");
     });
 }
 
@@ -898,16 +895,16 @@ static void UpdatePageInfoHelper(DocController* ctrl, NotificationWnd* wnd, int 
 }
 
 static void TogglePageInfoHelper(MainWindow* win) {
-    NotificationWnd* wnd = GetNotificationForGroup(win->hwndCanvas, kNotifGroupPageInfo);
+    NotificationWnd* wnd = GetNotificationForGroup(win->hwndCanvas, kNotifPageInfo);
     if (wnd) {
-        RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupPageInfo);
+        RemoveNotificationsForGroup(win->hwndCanvas, kNotifPageInfo);
         return;
     }
     NotificationCreateArgs args;
     args.hwndParent = win->hwndCanvas;
     args.timeoutMs = 0;
     args.msg = "";
-    args.groupId = kNotifGroupPageInfo;
+    args.groupId = kNotifPageInfo;
     wnd = ShowNotification(args);
     UpdatePageInfoHelper(win->ctrl, wnd, -1);
 }
@@ -918,7 +915,7 @@ void ControllerCallbackHandler::ZoomChanged(DocController* ctrl, float zoomVirtu
     if (win->ctrl != ctrl) {
         return;
     }
-    NotificationWnd* wnd = GetNotificationForGroup(win->hwndCanvas, kNotifGroupPageInfo);
+    NotificationWnd* wnd = GetNotificationForGroup(win->hwndCanvas, kNotifPageInfo);
     if (!wnd) {
         return;
     }
@@ -953,7 +950,7 @@ void ControllerCallbackHandler::PageNoChanged(DocController* ctrl, int pageNo) {
     UpdateTocSelection(win, pageNo);
     win->currPageNo = pageNo;
 
-    NotificationWnd* wnd = GetNotificationForGroup(win->hwndCanvas, kNotifGroupPageInfo);
+    NotificationWnd* wnd = GetNotificationForGroup(win->hwndCanvas, kNotifPageInfo);
     if (!wnd) {
         return;
     }
@@ -1270,7 +1267,7 @@ static void ReplaceDocumentInCurrentTab(LoadArgs* args, DocController* ctrl, Fil
     SetFrameTitleForTab(tab, false);
     UpdateUiForCurrentTab(win);
 
-    if (HasPermission(Perm::DiskAccess) && tab->GetEngineType() == kindEngineMupdf) {
+    if (CanAccessDisk() && tab->GetEngineType() == kindEngineMupdf) {
         ReportIf(!win->AsFixed() || win->AsFixed()->pdfSync);
         path = args->FilePath();
         int res = Synchronizer::Create(path, win->AsFixed()->GetEngine(), &win->AsFixed()->pdfSync);
@@ -1326,7 +1323,7 @@ static void ReplaceDocumentInCurrentTab(LoadArgs* args, DocController* ctrl, Fil
         nargs.hwndParent = win->hwndCanvas;
         nargs.warning = true;
         nargs.timeoutMs = 0;
-        nargs.groupId = kNotifGroupPersistentWarning;
+        nargs.groupId = kNotifPersistentWarning;
         nargs.msg = msg;
         ShowNotification(nargs);
     }
@@ -1553,7 +1550,7 @@ static MainWindow* CreateMainWindow() {
     CreateToolbar(win);
     CreateSidebar(win);
     UpdateFindbox(win);
-    if (HasPermission(Perm::DiskAccess) && !gPluginMode) {
+    if (CanAccessDisk() && !gPluginMode) {
         DragAcceptFiles(win->hwndCanvas, TRUE);
     }
 
@@ -1677,20 +1674,23 @@ static void RenameFileInHistory(const char* oldPath, const char* newPath) {
     }
 }
 
-static void scheduleReloadTab(WindowTab* tab) {
-    uitask::Post(TaskScheduleReloadTab, [=] {
-        // tab might have been closed, so first ensure it's still valid
-        // https://github.com/sumatrapdfreader/sumatrapdf/issues/1958
-        MainWindow* win = FindMainWindowByWindowTab(tab);
-        if (win == nullptr) {
-            return;
-        }
-        tab->reloadOnFocus = true;
-        if (tab == win->CurrentTab()) {
-            // delay the reload slightly, in case we get another request immediately after this one
-            SetTimer(win->hwndCanvas, AUTO_RELOAD_TIMER_ID, AUTO_RELOAD_DELAY_IN_MS, nullptr);
-        }
-    });
+static void ReloadTab(WindowTab* tab) {
+    // tab might have been closed, so first ensure it's still valid
+    // https://github.com/sumatrapdfreader/sumatrapdf/issues/1958
+    MainWindow* win = FindMainWindowByWindowTab(tab);
+    if (win == nullptr) {
+        return;
+    }
+    tab->reloadOnFocus = true;
+    if (tab == win->CurrentTab()) {
+        // delay the reload slightly, in case we get another request immediately after this one
+        SetTimer(win->hwndCanvas, AUTO_RELOAD_TIMER_ID, AUTO_RELOAD_DELAY_IN_MS, nullptr);
+    }
+}
+
+static void ScheduleReloadTab(WindowTab* tab) {
+    auto fn = MkFunc0<WindowTab>(ReloadTab, tab);
+    uitask::Post(fn, "ReloadTab");
 }
 
 // return true if adjustd path
@@ -1837,7 +1837,7 @@ MainWindow* LoadDocumentFinish(LoadArgs* args) {
     ReportIf(currTab->watcher);
 
     if (gGlobalPrefs->reloadModifiedDocuments) {
-        currTab->watcher = FileWatcherSubscribe(path, [currTab] { scheduleReloadTab(currTab); });
+        currTab->watcher = FileWatcherSubscribe(path, [currTab] { ScheduleReloadTab(currTab); });
     }
 
     if (gGlobalPrefs->rememberOpenedFiles) {
@@ -1855,7 +1855,7 @@ MainWindow* LoadDocumentFinish(LoadArgs* args) {
 
     // Add the file also to Windows' recently used documents (this doesn't
     // happen automatically on drag&drop, reopening from history, etc.)
-    if (HasPermission(Perm::DiskAccess) && !gPluginMode && !IsStressTesting()) {
+    if (CanAccessDisk() && !gPluginMode && !IsStressTesting()) {
         AddPathToRecentDocs(fullPath);
     }
 
@@ -1903,7 +1903,49 @@ static MainWindow* MaybeCreateWindowForFileLoad(LoadArgs* args) {
     return win;
 }
 
-void LoadDocumentAsync(LoadArgs* argsIn) {
+struct LoadDocumentAsyncData {
+    NotificationWnd* wndNotif = nullptr;
+    LoadArgs* args = nullptr;
+    LoadDocumentAsyncData() = default;
+    ~LoadDocumentAsyncData() {
+        delete args;
+    }
+};
+
+static void LoadDocumentAsyncFinish(LoadDocumentAsyncData* d) {
+    AutoDelete delData(d);
+
+    auto args = d->args;
+    RemoveNotification(d->wndNotif);
+    MainWindow* win = args->win;
+    const char* path = args->FilePath();
+    if (!args->ctrl) {
+        ShowErrorLoadingNotification(win, path, args->noSavePrefs);
+        return;
+    }
+    args->activateExisting = false;
+    LoadDocumentFinish(args);
+}
+
+static void LoadDocumentAsync(LoadDocumentAsyncData* d) {
+    auto args = d->args;
+    gDangerousThreadCount.Inc();
+    DocController* ctrl = nullptr;
+    MainWindow* win = args->win;
+    HwndPasswordUI pwdUI(win->hwndFrame ? win->hwndFrame : nullptr);
+    const char* path = args->FilePath();
+    EngineBase* engine = args->engine;
+    args->ctrl = CreateControllerForEngineOrFile(engine, path, &pwdUI, win);
+    if (args->ctrl && gIsDebugBuild) {
+        //::Sleep(5000);
+    }
+
+    auto fn = MkFunc0<LoadDocumentAsyncData>(LoadDocumentAsyncFinish, d);
+    uitask::Post(fn, "TaskLoadDocumentAsyncFinish");
+    gDangerousThreadCount.Dec();
+}
+
+void StartLoadDocument(LoadArgs* argsIn) {
     if (gCrashOnOpen) {
         log("LoadDocumentAsync: about to call CrashMe()\n");
         CrashMe();
@@ -1959,35 +2001,11 @@ void LoadDocumentAsync(LoadArgs* argsIn) {
         }
     }
 
-    RunAsync(
-        [args, wndNotif] {
-            gDangerousThreadCount.Inc();
-            DocController* ctrl = nullptr;
-            MainWindow* win = args->win;
-            HwndPasswordUI pwdUI(win->hwndFrame ? win->hwndFrame : nullptr);
-            const char* path = args->FilePath();
-            EngineBase* engine = args->engine;
-            args->ctrl = CreateControllerForEngineOrFile(engine, path, &pwdUI, win);
-            if (args->ctrl && gIsDebugBuild) {
-                //::Sleep(5000);
-            }
-
-            uitask::Post(TaskLoadDocumentAsyncFinish, [args, wndNotif] {
-                RemoveNotification(wndNotif);
-                MainWindow* win = args->win;
-                const char* path = args->FilePath();
-                if (!args->ctrl) {
-                    ShowErrorLoadingNotification(win, path, args->noSavePrefs);
-                    delete args;
-                    return;
-                }
-                args->activateExisting = false;
-                LoadDocumentFinish(args);
-                delete args;
-            });
-            gDangerousThreadCount.Dec();
-        },
-        "LoadDocumentThread");
+    auto data = new LoadDocumentAsyncData;
+    data->wndNotif = wndNotif;
+    data->args = args;
+    auto fn = MkFunc0<LoadDocumentAsyncData>(LoadDocumentAsync, data);
+    RunAsync(fn, "LoadDocumentThread");
 }
 
 // remember which files failed to open so that a failure to
@@ -2036,7 +2054,7 @@ MainWindow* LoadDocument(LoadArgs* args) {
                 logf("LoadDocument: %.2f ms, %d pages for '%s'\n", (float)durMs, nPages, path);
             } else {
                 logf("LoadDocument: failed to load '%s' in %.2f ms\n", path, (float)durMs);
-                AppendIfNotExists(gFilesFailedToOpen, path);
+                AppendIfNotExists(&gFilesFailedToOpen, path);
             }
         }
 
@@ -2309,9 +2327,9 @@ static void CloseDocumentInCurrentTab(MainWindow* win, bool keepUIEnabled, bool 
     } else {
         win->currentTabTemp = nullptr;
     }
-    RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupActionResponse);
-    RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupPageInfo);
-    RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupCursorPos);
+    RemoveNotificationsForGroup(win->hwndCanvas, kNotifActionResponse);
+    RemoveNotificationsForGroup(win->hwndCanvas, kNotifPageInfo);
+    RemoveNotificationsForGroup(win->hwndCanvas, kNotifCursorPos);
     RemoveNotificationsForGroup(win->hwndCanvas, kNotifZoom);
 
     // TODO: this can cause a mouse capture to stick around when called from LoadModelIntoTab (cf. OnSelectionStop)
@@ -2616,8 +2634,8 @@ void CloseTab(WindowTab* tab, bool quitIfLast) {
     MainWindow* win = tab->win;
     AbortFinding(win, true);
     ClearFindBox(win);
-    RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupPageInfo);
-    RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupAnnotation);
+    RemoveNotificationsForGroup(win->hwndCanvas, kNotifPageInfo);
+    RemoveNotificationsForGroup(win->hwndCanvas, kNotifAnnotation);
     RemoveNotificationsForGroup(win->hwndCanvas, kNotifZoom);
 
     RememberRecentlyClosedDocument(tab->filePath);
@@ -2628,7 +2646,7 @@ void CloseTab(WindowTab* tab, bool quitIfLast) {
         return;
     }
 
-    size_t tabCount = win->TabCount();
+    int tabCount = win->TabCount();
     if (tabCount == 1 || (tabCount == 0 && quitIfLast)) {
         if (CanCloseWindow(win)) {
             CloseWindow(win, quitIfLast, false);
@@ -2820,7 +2838,7 @@ static bool AppendFileFilterForDoc(DocController* ctrl, str::Str& fileFilter) {
 }
 
 static void SaveCurrentFileAs(MainWindow* win) {
-    if (!HasPermission(Perm::DiskAccess)) {
+    if (!CanAccessDisk()) {
         return;
     }
     if (!win->IsDocLoaded()) {
@@ -2952,7 +2970,7 @@ static void SaveCurrentFileAs(MainWindow* win) {
 }
 
 void SumatraOpenPathInExplorer(const char* path) {
-    if (gPluginMode || !HasPermission(Perm::DiskAccess)) {
+    if (gPluginMode || !CanAccessDisk()) {
         return;
     }
     OpenPathInExplorer(path);
@@ -2967,7 +2985,7 @@ static void ShowCurrentFileInFolder(MainWindow* win) {
 }
 
 static void DeleteCurrentFile(MainWindow* win) {
-    if (!HasPermission(Perm::DiskAccess)) {
+    if (!CanAccessDisk()) {
         return;
     }
     if (!win->IsDocLoaded()) {
@@ -2988,7 +3006,7 @@ static void DeleteCurrentFile(MainWindow* win) {
 }
 
 static void RenameCurrentFile(MainWindow* win) {
-    if (!HasPermission(Perm::DiskAccess)) {
+    if (!CanAccessDisk()) {
         return;
     }
     if (!win->IsDocLoaded()) {
@@ -3076,7 +3094,7 @@ static void RenameCurrentFile(MainWindow* win) {
 }
 
 static void CreateLnkShortcut(MainWindow* win) {
-    if (!HasPermission(Perm::DiskAccess) || gPluginMode) {
+    if (!CanAccessDisk() || gPluginMode) {
         return;
     }
     if (!win->IsDocLoaded()) {
@@ -3329,7 +3347,7 @@ static TempWStr GetFileFilterTemp() {
 }
 
 static void OpenFile(MainWindow* win) {
-    if (!HasPermission(Perm::DiskAccess)) {
+    if (!CanAccessDisk()) {
         return;
     }
 
@@ -3419,8 +3437,8 @@ static StrVec& CollectNextPrevFilesIfChanged(const char* path) {
         }
         files.RemoveAt(i);
     }
-    AppendIfNotExists(files, path);
-    SortNatural(files);
+    AppendIfNotExists(&files, path);
+    SortNatural(&files);
     return files;
 }
 
@@ -3429,7 +3447,7 @@ static void OpenNextPrevFileInFolder(MainWindow* win, bool forward) {
     if (win->IsCurrentTabAbout()) {
         return;
     }
-    if (!HasPermission(Perm::DiskAccess) || gPluginMode) {
+    if (!CanAccessDisk() || gPluginMode) {
         return;
     }
 
@@ -3532,7 +3550,7 @@ static void RelayoutFrame(MainWindow* win, bool updateToolbars = true, int sideb
     }
 
     // ToC and Favorites sidebars at the left
-    bool showFavorites = gGlobalPrefs->showFavorites && !gPluginMode && HasPermission(Perm::DiskAccess);
+    bool showFavorites = gGlobalPrefs->showFavorites && !gPluginMode && CanAccessDisk();
     bool tocVisible = win->tocVisible;
     if (tocVisible || showFavorites) {
         Size toc = ClientRect(win->hwndTocBox).Size();
@@ -3668,7 +3686,7 @@ static void OpenFileWithTextEditor(const char* path) {
 #endif
 
 static void OpenAdvancedOptions() {
-    if (!HasPermission(Perm::DiskAccess) || !HasPermission(Perm::SavePreferences)) {
+    if (!CanAccessDisk() || !HasPermission(Perm::SavePreferences)) {
         return;
     }
 
@@ -3831,7 +3849,7 @@ static Point GetSmartZoomPos(MainWindow* win, Point suggestdPoint) {
 
 static void ShowZoomNotification(MainWindow* win, float zoomLevel) {
     // don't show zoom info if showing page info
-    NotificationWnd* wnd = GetNotificationForGroup(win->hwndCanvas, kNotifGroupPageInfo);
+    NotificationWnd* wnd = GetNotificationForGroup(win->hwndCanvas, kNotifPageInfo);
     if (wnd) {
         return;
     }
@@ -4191,12 +4209,12 @@ static bool FrameOnKeydown(MainWindow* win, WPARAM key, LPARAM lp) {
 
     bool isCtrl = IsCtrlPressed();
     bool isShift = IsShiftPressed();
-
+#if 0
     if (win->tabsVisible && isCtrl && VK_TAB == key) {
         TabsOnCtrlTab(win, isShift);
         return true;
     }
-
+#endif
     if (!win->IsDocLoaded()) {
         return false;
     }
@@ -4282,13 +4300,13 @@ static void OnFrameKeyEsc(MainWindow* win) {
     if (AbortFinding(win, true)) {
         return;
     }
-    if (RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupPersistentWarning)) {
+    if (RemoveNotificationsForGroup(win->hwndCanvas, kNotifPersistentWarning)) {
         return;
     }
-    if (RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupPageInfo)) {
+    if (RemoveNotificationsForGroup(win->hwndCanvas, kNotifPageInfo)) {
         return;
     }
-    if (RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupCursorPos)) {
+    if (RemoveNotificationsForGroup(win->hwndCanvas, kNotifCursorPos)) {
         return;
     }
     if (RemoveNotificationsForGroup(win->hwndCanvas, kNotifZoom)) {
@@ -4386,6 +4404,11 @@ Annotation* MakeAnnotationsFromSelection(WindowTab* tab, AnnotCreateArgs* args) 
         return 0;
     }
 
+    if (args->setContent) {
+        bool isTextOnlySelection = false;
+        args->content = GetSelectedTextTemp(tab, "\r\n", isTextOnlySelection);
+    }
+
     int nCreated = 0;
     Annotation* annot = nullptr;
     for (auto pageNo : pageNos) {
@@ -4422,11 +4445,11 @@ static void ToggleCursorPositionInDoc(MainWindow* win) {
     if (!win->AsFixed()) {
         return;
     }
-    auto notif = GetNotificationForGroup(win->hwndCanvas, kNotifGroupCursorPos);
+    auto notif = GetNotificationForGroup(win->hwndCanvas, kNotifCursorPos);
     if (!notif) {
         NotificationCreateArgs args;
         args.hwndParent = win->hwndCanvas;
-        args.groupId = kNotifGroupCursorPos;
+        args.groupId = kNotifCursorPos;
         args.timeoutMs = 0;
         notif = ShowNotification(args);
         cursorPosUnit = MeasurementUnit::pt;
@@ -4440,7 +4463,7 @@ static void ToggleCursorPositionInDoc(MainWindow* win) {
                 break;
             case MeasurementUnit::in:
                 cursorPosUnit = MeasurementUnit::pt;
-                RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupCursorPos);
+                RemoveNotificationsForGroup(win->hwndCanvas, kNotifCursorPos);
                 return;
             default:
                 ReportIf(true);
@@ -4573,7 +4596,7 @@ static void OnFavSplitterMove(SplitterMoveEvent* ev) {
 }
 
 void SetSidebarVisibility(MainWindow* win, bool tocVisible, bool showFavorites) {
-    if (gPluginMode || !HasPermission(Perm::DiskAccess)) {
+    if (gPluginMode || !CanAccessDisk()) {
         showFavorites = false;
     }
 
@@ -4809,7 +4832,7 @@ TempStr GetLogFilePathTemp() {
 }
 
 // separate directory for each build number / type
-static TempStr GetVerDirNameTemp(const char* prefix) {
+TempStr GetVerDirNameTemp(const char* prefix) {
     auto variant = gIsPreReleaseBuild ? "prerel" : "rel";
     if (gIsDebugBuild) {
         variant = "dbg";
@@ -4857,23 +4880,29 @@ void CopyFilePath(WindowTab* tab) {
 
 Kind kNotifClearHistory = "clearHistry";
 
-void ClearHistoryAfterAsync(MainWindow* win, int nFiles) {
-    if (!MainWindowStillValid(win)) {
+struct ClearHistoryData {
+    MainWindow* win = nullptr;
+    int nFiles = 0;
+};
+
+static void ClearHistoryFinish(ClearHistoryData* d) {
+    AutoDelete delData(d);
+    MainWindow* win = d->win;
+    if (!IsMainWindowValid(win)) {
         return;
     }
     RemoveNotificationsForGroup(win->hwndCanvas, kNotifClearHistory);
-    ::InvalidateRect(win->hwndCanvas, nullptr, true);
-    ::UpdateWindow(win->hwndCanvas);
-    TempStr msg2 = str::FormatTemp(_TRA("Cleared history of %d files, deleted thumbnails."), nFiles);
+    HwndInvalidate(win->hwndCanvas);
+    TempStr msg2 = str::FormatTemp(_TRA("Cleared history of %d files, deleted thumbnails."), d->nFiles);
     ShowTemporaryNotification(win->hwndCanvas, msg2, kNotif5SecsTimeOut);
 }
 
-void ClearHistoryAsyncPart(MainWindow* win, int nFiles) {
+static void ClearHistoryAsync(ClearHistoryData* d) {
     DeleteThumbnailCacheDirectory();
     TempStr symDir = GetCrashInfoDirTemp();
     dir::RemoveAll(symDir);
-
-    uitask::Post(TaksClearHistoryAsyncPart, [win, nFiles]() { ClearHistoryAfterAsync(win, nFiles); });
+    auto fn = MkFunc0<ClearHistoryData>(ClearHistoryFinish, d);
+    uitask::Post(fn, "TaksClearHistoryAsyncPart");
     DestroyTempAllocator();
 }
 
@@ -4914,7 +4943,11 @@ void ClearHistory(MainWindow* win) {
     args.hwndParent = win->hwndCanvas;
     args.timeoutMs = kNotif5SecsTimeOut;
     ShowNotification(args);
-    RunAsync([win, nFiles]() { ClearHistoryAsyncPart(win, nFiles); }, "ClearHistoryThread");
+    auto data = new ClearHistoryData;
+    data->win = win;
+    data->nFiles = nFiles;
+    auto fn = MkFunc0<ClearHistoryData>(ClearHistoryAsync, data);
+    RunAsync(fn, "ClearHistoryAsync");
 }
 
 static void DownloadDebugSymbols() {
@@ -4944,14 +4977,15 @@ ShowMessage:
 // this can be used to test that crash handler still works
 // TODO: maybe corrupt some more
 void DebugCorruptMemory() {
-#if 0
+    if (!gIsDebugBuild) {
+        return;
+    }
     char* s = (char*)malloc(23);
     char* d = (char*)malloc(34);
     free(s);
     free(d);
     // this triggers ntdll.dll!RtlReportCriticalFailure()
     free(s);
-#endif
 }
 
 static bool ExtractFiles(lzma::SimpleArchive* archive, const char* destDir) {
@@ -4989,42 +5023,6 @@ static bool ExtractFiles(lzma::SimpleArchive* archive, const char* destDir) {
     }
 
     return true;
-}
-
-static bool MaybeDeleteStaleDirectory(WIN32_FIND_DATAW* fd, const char* dir) {
-    ReportIf(!IsDirectory(fd->dwFileAttributes));
-    TempStr name = ToUtf8Temp(fd->cFileName);
-    bool maybeDelete = str::StartsWith(name, "manual-") || str::StartsWith(name, "crashinfo-");
-    if (!maybeDelete) {
-        logf("MaybeDeleteStaleDirectory: skipping '%s' because not manual-* or crsahinfo-*\n", name);
-        return true;
-    }
-    TempStr currVer = GetVerDirNameTemp("");
-    if (str::Contains(name, currVer)) {
-        logf("MaybeDeleteStaleDirectory: skipping '%s' because our ver '%s'\n", name, currVer);
-        return true;
-    }
-    bool ok = dir::RemoveAll(dir);
-    logf("MaybeDeleteStaleDirectory: dir::RemoveAll('%s') returned %d\n", dir, ok);
-    return true;
-}
-
-// delete symbols and manual from possibly previous versions
-static void DeleteStaleFiles() {
-    TempStr dir = GetNotImportantDataDirTemp();
-    VisitDir(dir, kVisitDirIncludeDirs, MaybeDeleteStaleDirectory);
-}
-
-void DeleteStaleFilesAsync() {
-    // for now we only care about pre-release builds as they can be updated frequently
-    if (false && !gIsPreReleaseBuild) {
-        logf("DeleteStaleFiles: skipping because gIsPreRelaseBuild: %d\n", (int)gIsPreReleaseBuild);
-        return;
-    }
-    TempStr dir = GetNotImportantDataDirTemp();
-    TempStr ver = GetVerDirNameTemp("");
-    logf("DeleteStaleFiles: dir: '%s', gIsPreRelaseBuild: %d, ver: %s\n", dir, (int)gIsPreReleaseBuild, ver);
-    RunAsync(DeleteStaleFiles, "DeleteStaleFilesThread");
 }
 
 constexpr const char* kManualIndex = "SumatraPDF-documentation.html";
@@ -5109,17 +5107,13 @@ OpenFileInBrowser:
 
 static void SetAnnotCreateArgs(AnnotCreateArgs& args, CustomCommand* cmd) {
     if (cmd) {
-        {
-            auto copyToClip = GetCommandBoolArg(cmd, kCmdArgCopyToClipboard, false);
-            args.copyToClipboard = copyToClip;
-        }
-        {
-            auto col = GetCommandArg(cmd, kCmdArgColor);
-            ReportIf(!col || !col->colorVal.parsedOk);
-            if (col && col->colorVal.parsedOk) {
-                args.col = col->colorVal;
-                return;
-            }
+        args.copyToClipboard = GetCommandBoolArg(cmd, kCmdArgCopyToClipboard, false);
+        args.setContent = GetCommandBoolArg(cmd, kCmdArgSetContent, false);
+        auto col = GetCommandArg(cmd, kCmdArgColor);
+        ReportIf(!col || !col->colorVal.parsedOk);
+        if (col && col->colorVal.parsedOk) {
+            args.col = col->colorVal;
+            return;
         }
     }
     auto& a = gGlobalPrefs->annotations;
@@ -5215,16 +5209,19 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
     // most of them require a win, the few exceptions are no-ops
     switch (cmdId) {
         case CmdViewWithExternalViewer: {
-            if (cmd) {
-                ViewWithCustomExternalViewer(tab, cmd->id);
+            const char* cmdLine = GetCommandStringArg(cmd, kCmdArgCommandLine, nullptr);
+            if (!cmdLine || !CanAccessDisk() || !tab || !file::Exists(tab->filePath)) {
+                return 0;
             }
+            const char* filter = GetCommandStringArg(cmd, kCmdArgFilter, nullptr);
+            RunWithExe(tab, cmdLine, filter);
             return 0;
         }
 
         case CmdSetTheme: {
-            auto name = GetCommandStringArg(cmd, kCmdArgName, nullptr);
-            if (name) {
-                SetTheme(name);
+            auto theme = GetCommandStringArg(cmd, kCmdArgTheme, nullptr);
+            if (theme) {
+                SetTheme(theme);
             }
             return 0;
         }
@@ -5304,17 +5301,13 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             CopyFilePath(tab);
             break;
 
-        case CmdCommandPalette:
-            RunCommandPallette(win, nullptr);
-            break;
-
-        case CmdCommandPaletteNoFiles:
-            RunCommandPallette(win, ">");
-            break;
-
-        case CmdCommandPaletteOnlyTabs:
-            RunCommandPallette(win, "@");
-            break;
+        case CmdCommandPalette: {
+            const char* mode = nullptr;
+            if (cmd) {
+                mode = GetCommandStringArg(cmd, kCmdArgMode, nullptr);
+            }
+            RunCommandPallette(win, mode);
+        } break;
 
         case CmdClearHistory:
             ClearHistory(win);
@@ -5328,19 +5321,18 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             ShowLogFileSmart();
             break;
 
-        case CmdClose: {
-            bool quitIfLast = false;
-            CloseCurrentTab(win, quitIfLast);
-            break;
-        }
-
         case CmdNextTab:
             TabsOnCtrlTab(win, false);
             break;
-
         case CmdPrevTab:
             TabsOnCtrlTab(win, true);
             break;
+        case CmdSmartTabSwitch: {
+            if (win && win->TabCount() > 1) {
+                RunCommandPallette(win, kPalettePrefixTabsSmart);
+            }
+            break;
+        }
 
         case CmdCloseAllTabs: {
             CloseAllTabs(win);
@@ -5699,7 +5691,7 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             break;
 
         case CmdCheckUpdate:
-            CheckForUpdateAsync(win, UpdateCheck::UserInitiated);
+            StartAsyncUpdateCheck(win, UpdateCheck::UserInitiated);
             break;
 
         case CmdOptions:
@@ -5799,7 +5791,7 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             {
                 NotificationCreateArgs args;
                 args.hwndParent = win->hwndCanvas;
-                args.groupId = kNotifGroupPersistentWarning;
+                args.groupId = kNotifPersistentWarning;
                 args.msg = "This is a second notification\nMy friend.";
                 args.warning = false;
                 args.timeoutMs = kNotifDefaultTimeOut;
@@ -5888,9 +5880,16 @@ static LRESULT FrameOnCommand(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, L
             }
             break;
 
+        case CmdClose: {
+            CloseCurrentTab(win, false /* quitIfLast */);
+            break;
+        }
+
         case CmdCloseCurrentDocument: {
-            bool quitIfLast = true;
-            CloseCurrentTab(win, quitIfLast);
+            gDontSavePrefs = true;
+            CloseCurrentTab(win, true /* quitIfLast */);
+            gDontSavePrefs = false;
+            SaveSettings();
             break;
         }
 
@@ -6326,8 +6325,8 @@ void ShowCrashHandlerMessage() {
     // able to do anything about it anyway and it's up to the application provider
     // to fix the unexpected behavior (of which for a restricted set of documents
     // there should be much less, anyway)
-    if (!HasPermission(Perm::DiskAccess)) {
-        log("ShowCrashHandlerMessage: skipping beacuse !HasPermission(Perm::DiskAccess)\n");
+    if (!CanAccessDisk()) {
+        log("ShowCrashHandlerMessage: skipping beacuse !CanAccessDisk()\n");
         return;
     }
 

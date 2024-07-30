@@ -92,8 +92,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int nCmdShow) {
     ParseCmdLine(GetCommandLineW(), argList);
 
     if (argList.Size() == 1) {
-        char* exe = argList.At(0);
-        TempStr name = path::GetBaseNameTemp(exe);
+        TempStr name = path::GetBaseNameTemp(argList.At(0));
         TempStr msg = str::FormatTemp("Syntax: %s [<SumatraPDF.exe>] [<URL>] <filename.ext>", name);
         MsgBox(nullptr, msg, PLUGIN_TEST_NAMEA, MB_OK | MB_ICONINFORMATION);
         return 1;

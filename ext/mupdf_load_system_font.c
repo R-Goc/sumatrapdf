@@ -27,6 +27,8 @@
 
 #define MAX_FACENAME 128
 
+#define MAX_FONTS 2048
+
 // Note: the font face must be the first field so that the structure
 //       can be treated like a simple string for searching
 typedef struct {
@@ -36,7 +38,7 @@ typedef struct {
 } sys_font_info;
 
 typedef struct {
-    sys_font_info* fontmap;
+    sys_font_info fontmap[MAX_FONTS];
     int len;
     int cap;
 } pdf_fontlistMS;
@@ -96,14 +98,24 @@ static struct {
     {"Symbol", "SymbolMT"},
 };
 
-static pdf_fontlistMS fontlistMS = {
-    NULL,
-    0,
-    0,
-};
+static pdf_fontlistMS fontlistMS;
 
 static int did_init = 0;
 static CRITICAL_SECTION cs_fonts;
+
+static int streq(const char* s1, const char* s2) {
+    if (strcmp(s1, s2) == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+static int streqi(const char* s1, const char* s2) {
+    if (_stricmp(s1, s2) == 0) {
+        return 1;
+    }
+    return 0;
+}
 
 static inline USHORT BEtoHs(USHORT x) {
     BYTE* data = (BYTE*)&x;
@@ -125,7 +137,7 @@ static int lookup_compare(const void* elem1, const void* elem2) {
 
     if (len1 != len2) {
         const char* rest = len1 > len2 ? val1 + len2 : val2 + len1;
-        if (',' == *rest || !_stricmp(rest, "-roman"))
+        if (',' == *rest || streqi(rest, "-roman"))
             return _strnicmp(val1, val2, fz_mini(len1, len2));
     }
 
@@ -145,7 +157,7 @@ static int str_ends_with(const char* str, const char* end) {
     size_t len1 = strlen(str);
     size_t len2 = strlen(end);
 
-    return len1 >= len2 && !strcmp(str + len1 - len2, end);
+    return len1 >= len2 && streq(str + len1 - len2, end);
 }
 
 static sys_font_info* pdf_find_windows_font_path(const char* fontname) {
@@ -207,37 +219,16 @@ static void decode_platform_string(fz_context* ctx, int platform, int enctype, c
     }
 }
 
-static void grow_system_font_list(fz_context* ctx, pdf_fontlistMS* fl) {
-    int newcap;
-    sys_font_info* newitems;
-
-    if (fl->cap == 0)
-        newcap = 1024;
-    else
-        newcap = fl->cap * 2;
-
-    // use realloc/free for the fontmap, since the list can
-    // remain in memory even with all fz_contexts destroyed
-    newitems = (sys_font_info*)realloc(fl->fontmap, newcap * sizeof(sys_font_info));
-    if (!newitems)
-        fz_throw(ctx, FZ_ERROR_GENERIC, "OOM in grow_system_font_list");
-    memset(newitems + fl->cap, 0, sizeof(sys_font_info) * (newcap - fl->cap));
-
-    fl->fontmap = newitems;
-    fl->cap = newcap;
-}
-
-static void append_mapping(fz_context* ctx, pdf_fontlistMS* fl, const char* facename, const char* path, int index) {
-    if (fl->len == fl->cap)
-        grow_system_font_list(ctx, fl);
-
-    if (fl->len >= fl->cap)
-        fz_throw(ctx, FZ_ERROR_GENERIC, "fonterror : fontlist overflow");
+static void append_mapping(fz_context* ctx, const char* facename, const char* path, int index) {
+    pdf_fontlistMS* fl = &fontlistMS;
+    if (fl->len >= fl->cap) {
+        // fz_throw(ctx, FZ_ERROR_GENERIC, "fonterror : fontlist overflow");
+        return;
+    }
 
     fz_strlcpy(fl->fontmap[fl->len].fontface, facename, sizeof(fl->fontmap[0].fontface));
     fz_strlcpy(fl->fontmap[fl->len].fontpath, path, sizeof(fl->fontmap[0].fontpath));
     fl->fontmap[fl->len].index = index;
-
     ++fl->len;
 }
 
@@ -296,11 +287,13 @@ static void parseTTF(fz_context* ctx, fz_stream* file, int offset, int index, co
     for (i = 0; i < count; i++) {
         int entryOffset = offset + sizeof(TT_OFFSET_TABLE) + i * sizeof(TT_TABLE_DIRECTORY);
         safe_read(ctx, file, entryOffset, (char*)&tblDirBE, sizeof(TT_TABLE_DIRECTORY));
-        if (!BEtoHl(tblDirBE.uTag) || BEtoHl(tblDirBE.uTag) == TTAG_name)
+        if (!BEtoHl(tblDirBE.uTag) || BEtoHl(tblDirBE.uTag) == TTAG_name) {
             break;
+        }
     }
-    if (count == i || !BEtoHl(tblDirBE.uTag))
+    if (count == i || !BEtoHl(tblDirBE.uTag)) {
         fz_throw(ctx, FZ_ERROR_GENERIC, "fonterror : nameless font");
+    }
     tblOffset = BEtoHl(tblDirBE.uOffset);
 
     // read the 'name' table for record count and offsets
@@ -343,37 +336,41 @@ static void parseTTF(fz_context* ctx, fz_stream* file, int offset, int index, co
     }
 
     // try to prevent non-Arial fonts from accidentally substituting Arial
-    if (!strcmp(szPSName, "ArialMT")) {
+    if (streq(szPSName, "ArialMT")) {
         // cf. https://code.google.com/p/sumatrapdf/issues/detail?id=2471
-        if (strcmp(szTTName, "Arial") != 0)
+        if (!streq(szTTName, "Arial")) {
             szPSName[0] = '\0';
-        // TODO: is there a better way to distinguish Arial Caps from Arial proper?
-        // cf. https://code.google.com/p/sumatrapdf/issues/detail?id=1290
-        else if (strstr(path, "caps") || strstr(path, "Caps"))
+        } else if (strstr(path, "caps") || strstr(path, "Caps")) {
+            // TODO: is there a better way to distinguish Arial Caps from Arial proper?
+            // cf. https://code.google.com/p/sumatrapdf/issues/detail?id=1290
             fz_throw(ctx, FZ_ERROR_GENERIC, "ignore %s, as it can't be distinguished from Arial,Regular", path);
+        }
     }
 
-    if (szPSName[0])
-        append_mapping(ctx, &fontlistMS, szPSName, path, index);
+    if (szPSName[0]) {
+        append_mapping(ctx, szPSName, path, index);
+    }
     if (szTTName[0]) {
         // derive a PostScript-like name and add it, if it's different from the font's
         // included PostScript name; cf. https://code.google.com/p/sumatrapdf/issues/detail?id=376
         makeFakePSName(szTTName, szStyle);
         // compare the two names before adding this one
-        if (lookup_compare(szTTName, szPSName))
-            append_mapping(ctx, &fontlistMS, szTTName, path, index);
+        if (lookup_compare(szTTName, szPSName)) {
+            append_mapping(ctx, szTTName, path, index);
+        }
     }
     if (szCJKName[0]) {
         makeFakePSName(szCJKName, szStyle);
-        if (lookup_compare(szCJKName, szPSName) && lookup_compare(szCJKName, szTTName))
-            append_mapping(ctx, &fontlistMS, szCJKName, path, index);
+        if (lookup_compare(szCJKName, szPSName) && lookup_compare(szCJKName, szTTName)) {
+            append_mapping(ctx, szCJKName, path, index);
+        }
     }
 }
 
 static void parseTTFs(fz_context* ctx, const char* path) {
-    fz_stream* file = fz_open_file(ctx, path);
-    /* "fonterror : %s not found", path */
+    fz_stream* file = 0;
     fz_try(ctx) {
+        file = fz_open_file(ctx, path);
         parseTTF(ctx, file, 0, 0, path);
     }
     fz_always(ctx) {
@@ -389,14 +386,14 @@ static void parseTTCs(fz_context* ctx, const char* path) {
     ULONG i, numFonts, *offsettableBE = NULL;
 
     fz_stream* file = fz_open_file(ctx, path);
-    /* "fonterror : %s not found", path */
 
     fz_var(offsettableBE);
 
     fz_try(ctx) {
         safe_read(ctx, file, 0, (char*)&fontcollectionBE, sizeof(FONT_COLLECTION));
-        if (BEtoHl(fontcollectionBE.Tag) != TTAG_ttcf)
+        if (BEtoHl(fontcollectionBE.Tag) != TTAG_ttcf) {
             fz_throw(ctx, FZ_ERROR_GENERIC, "fonterror : wrong format %x", BEtoHl(fontcollectionBE.Tag));
+        }
         if (BEtoHl(fontcollectionBE.Version) != TTC_VERSION1 && BEtoHl(fontcollectionBE.Version) != TTC_VERSION2) {
             fz_throw(ctx, FZ_ERROR_GENERIC, "fonterror : invalid version %x", BEtoHl(fontcollectionBE.Version));
         }
@@ -429,8 +426,9 @@ static void extend_system_font_list(fz_context* ctx, const WCHAR* path) {
     hList = FindFirstFile(szPath, &FileData);
     if (hList == INVALID_HANDLE_VALUE) {
         // Don't complain about missing directories
-        if (GetLastError() == ERROR_FILE_NOT_FOUND)
+        if (GetLastError() == ERROR_FILE_NOT_FOUND) {
             return;
+        }
         fz_throw(ctx, FZ_ERROR_GENERIC, "extend_system_font_list: unknown error %d", GetLastError());
     }
     do {
@@ -445,10 +443,11 @@ static void extend_system_font_list(fz_context* ctx, const WCHAR* path) {
             }
             fileExt = szPathUtf8 + strlen(szPathUtf8) - 4;
             fz_try(ctx) {
-                if (!_stricmp(fileExt, ".ttc"))
+                if (streqi(fileExt, ".ttc")) {
                     parseTTCs(ctx, szPathUtf8);
-                else if (!_stricmp(fileExt, ".ttf") || !_stricmp(fileExt, ".otf"))
+                } else if (streqi(fileExt, ".ttf") || streqi(fileExt, ".otf")) {
                     parseTTFs(ctx, szPathUtf8);
+                }
             }
             fz_catch(ctx) {
                 fz_report_error(ctx);
@@ -482,8 +481,9 @@ static void create_system_font_list(fz_context* ctx) {
         extend_system_font_list(ctx, szFontDir);
     }
 
-    if (fontlistMS.len == 0)
+    if (fontlistMS.len == 0) {
         fz_warn(ctx, "couldn't find any usable system fonts");
+    }
 
 #ifdef NOCJKFONT
     {
@@ -512,8 +512,9 @@ static void create_system_font_list(fz_context* ctx) {
         for (i = prev_len; i < fontlistMS.len; i++) {
             sys_font_info* entry = bsearch(fontlistMS.fontmap[i].fontface, fontlistMS.fontmap, prev_len,
                                            sizeof(sys_font_info), lookup_compare);
-            if (entry)
+            if (entry) {
                 *entry = fontlistMS.fontmap[i];
+            }
         }
         qsort(fontlistMS.fontmap, fontlistMS.len, sizeof(sys_font_info), stricmp_wrapper);
     }
@@ -600,8 +601,9 @@ static fz_font* pdf_load_windows_font_by_name(fz_context* ctx, const char* orig_
     }
     LeaveCriticalSection(&cs_fonts);
 
-    if (fontlistMS.len == 0)
+    if (fontlistMS.len == 0) {
         fz_throw(ctx, FZ_ERROR_GENERIC, "fonterror: couldn't find any fonts");
+    }
 
     // work on a normalized copy of the font name
     fontname = fz_strdup(ctx, orig_name);
@@ -618,12 +620,14 @@ static fz_font* pdf_load_windows_font_by_name(fz_context* ctx, const char* orig_
     else {
         int i;
         for (i = 0; i < nelem(baseSubstitutes) && !found; i++)
-            if (!strcmp(fontname, baseSubstitutes[i].name))
+            if (streq(fontname, baseSubstitutes[i].name)) {
                 found = pdf_find_windows_font_path(baseSubstitutes[i].pattern);
+            }
     }
     // third, search for the font name without additional style information
-    if (!found)
+    if (!found) {
         found = pdf_find_windows_font_path(fontname);
+    }
     // fourth, try to separate style from basename for prestyled fonts (e.g. "ArialBold")
     if (!found && !comma && (str_ends_with(fontname, "Bold") || str_ends_with(fontname, "Italic"))) {
         int styleLen = str_ends_with(fontname, "Bold") ? 4 : str_ends_with(fontname, "BoldItalic") ? 10 : 6;
@@ -633,8 +637,9 @@ static fz_font* pdf_load_windows_font_by_name(fz_context* ctx, const char* orig_
         *comma = '-';
         found = pdf_find_windows_font_path(fontname);
         *comma = ',';
-        if (!found)
+        if (!found) {
             found = pdf_find_windows_font_path(fontname);
+        }
     }
     // fifth, try to convert the font name from the common Chinese codepage 936
     if (!found && fontname[0] < 0) {
@@ -648,8 +653,9 @@ static fz_font* pdf_load_windows_font_by_name(fz_context* ctx, const char* orig_
                 found = pdf_find_windows_font_path(cjkName);
                 *comma = ',';
             }
-            if (!found)
+            if (!found) {
                 found = pdf_find_windows_font_path(cjkName);
+            }
         }
     }
 
@@ -680,7 +686,7 @@ static fz_font* pdf_load_windows_font_by_name(fz_context* ctx, const char* orig_
         fz_warn(ctx, "loading non-embedded font '%s' from '%s'", orig_name, found->fontpath);
     }
 
-    int use_glyph_bbox = strcmp(found->fontface, "DroidSansFallback") != 0;
+    int use_glyph_bbox = !streq(found->fontface, "DroidSansFallback");
     font = fz_new_font_from_buffer(ctx, orig_name, buffer, found->index, use_glyph_bbox);
     font->flags.ft_substitute = 1;
     return font;
@@ -797,15 +803,18 @@ static fz_font* pdf_load_windows_cjk_font(fz_context* ctx, const char* fontname,
 
 void init_system_font_list(void) {
     // this should always happen on main thread
-    if (did_init)
+    if (did_init) {
         return;
+    }
     InitializeCriticalSection(&cs_fonts);
+    fontlistMS.len = 0;
+    fontlistMS.cap = MAX_FONTS;
     did_init = 1;
 }
 
 void destroy_system_font_list(void) {
-    free(fontlistMS.fontmap);
-    memset(&fontlistMS, 0, sizeof(fontlistMS));
+    fontlistMS.len = 0;
+    fontlistMS.cap = MAX_FONTS;
     DeleteCriticalSection(&cs_fonts);
 }
 

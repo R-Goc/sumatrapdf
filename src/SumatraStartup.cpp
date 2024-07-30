@@ -6,6 +6,7 @@
 #include "utils/WinDynCalls.h"
 #include "utils/CmdLineArgsIter.h"
 #include "utils/DbgHelpDyn.h"
+#include "utils/DirIter.h"
 #include "utils/Dpi.h"
 #include "utils/FileUtil.h"
 #include "utils/FileWatcher.h"
@@ -376,7 +377,7 @@ static bool SetupPluginMode(Flags& i) {
         TempStr args = str::DupTemp(str::FindChar(i.pluginURL, '#') + 1);
         str::TransCharsInPlace(args, "#", "&");
         StrVec parts;
-        Split(parts, args, "&", true);
+        Split(&parts, args, "&", true);
         for (int k = 0; k < parts.Size(); k++) {
             char* part = parts.At(k);
             int pageNo;
@@ -838,6 +839,43 @@ static void ShowNoAdminErrorMessage() {
     TaskDialogIndirect(&dialogConfig, nullptr, nullptr, nullptr);
 }
 
+static bool MaybeDeleteStaleDirectory(WIN32_FIND_DATAW* fd, const char* dir) {
+    ReportIf(!IsDirectory(fd->dwFileAttributes));
+    TempStr name = ToUtf8Temp(fd->cFileName);
+    bool maybeDelete = str::StartsWith(name, "manual-") || str::StartsWith(name, "crashinfo-");
+    if (!maybeDelete) {
+        logf("MaybeDeleteStaleDirectory: skipping '%s' because not manual-* or crsahinfo-*\n", name);
+        return true;
+    }
+    TempStr currVer = GetVerDirNameTemp("");
+    if (str::Contains(name, currVer)) {
+        logf("MaybeDeleteStaleDirectory: skipping '%s' because our ver '%s'\n", name, currVer);
+        return true;
+    }
+    bool ok = dir::RemoveAll(dir);
+    logf("MaybeDeleteStaleDirectory: dir::RemoveAll('%s') returned %d\n", dir, ok);
+    return true;
+}
+
+// delete symbols and manual from possibly previous versions
+static void DeleteStaleFilesAsync() {
+    TempStr dir = GetNotImportantDataDirTemp();
+    VisitDir(dir, kVisitDirIncludeDirs, MaybeDeleteStaleDirectory);
+}
+
+void StartDeleteStaleFiles() {
+    // for now we only care about pre-release builds as they can be updated frequently
+    if (false && !gIsPreReleaseBuild) {
+        logf("DeleteStaleFiles: skipping because gIsPreRelaseBuild: %d\n", (int)gIsPreReleaseBuild);
+        return;
+    }
+    TempStr dir = GetNotImportantDataDirTemp();
+    TempStr ver = GetVerDirNameTemp("");
+    logf("DeleteStaleFiles: dir: '%s', gIsPreRelaseBuild: %d, ver: %s\n", dir, (int)gIsPreReleaseBuild, ver);
+    auto fn = MkFuncVoid(DeleteStaleFilesAsync);
+    RunAsync(fn, "DeleteStaleFilesThread");
+}
+
 // non-admin process cannot send DDE messages to admin process
 // so when that happens we need to alert the user
 // TODO: maybe a better fix is to re-launch ourselves as admin?
@@ -939,6 +977,19 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     gCli = &flags;
 
     CheckIsStoreBuild();
+
+    // do this before running installer etc. so that we have disk / net permissions
+    // (default policy is to disallow everything)
+    InitializePolicies(flags.restrictedUse);
+
+#if defined(DEBUG)
+    if (false) {
+        TempStr exePath = GetExePathTemp();
+        RunNonElevated(exePath);
+        return 0;
+    }
+#endif
+
     bool isInstaller = flags.install || flags.runInstallNow || flags.fastInstall || IsInstallerAndNamedAsSuch();
     bool isUninstaller = flags.uninstall;
     bool noLogHere = isInstaller || isUninstaller;
@@ -952,7 +1003,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
 
     {
         char* s = ToUtf8Temp(GetCommandLineW());
-        logf("Starting SumatraPDF %s, GetCommandLineW():\n%s\n", UPDATE_CHECK_VERA, s);
+        logf("Starting SumatraPDF %s, GetCommandLineW(): '%s', flags.install: %d, flags.uninstall: %d\n",
+             UPDATE_CHECK_VERA, s, (int)flags.install, (int)flags.uninstall);
     }
 #if defined(DEBUG)
     if (gIsDebugBuild || gIsPreReleaseBuild) {
@@ -990,6 +1042,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         return exitCode;
     }
 
+    logf("  isInstaller: %d\n", (int)isInstaller);
     if (isInstaller) {
         if (!ExeHasInstallerResources()) {
             ShowNotValidInstallerError();
@@ -1001,12 +1054,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         ::ExitProcess(exitCode);
     }
 
+    logf("  isUninstaller: %d, flags.uninstaller: %d\n", (int)isUninstaller, (int)flags.uninstall);
     if (isUninstaller) {
         exitCode = RunUninstaller();
         ::ExitProcess(exitCode);
     }
 
     if (flags.updateSelfTo) {
+        logf(" flags.updateSelfTo: '%s'\n", flags.updateSelfTo);
         RedirectIOToExistingConsole();
         UpdateSelfTo(flags.updateSelfTo);
         if (flags.exitWhenDone) {
@@ -1016,6 +1071,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
     }
 
     if (flags.deleteFile) {
+        logf(" flags.deleteFile: '%s'\n", flags.deleteFile);
         RedirectIOToExistingConsole();
         // sleeping for a bit to make sure that the program that launched us
         // had time to exit so that we can overwrite it
@@ -1042,10 +1098,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         // pull in libmupdf.dll which we don't have access to in the installer
         ::ExitProcess(exitCode);
     }
-
-    // do this before running installer etc. so that we have disk / net permissions
-    // (default policy is to disallow everything)
-    InitializePolicies(flags.restrictedUse);
 
 #if defined(DEBUG)
     if (flags.testRenderPage) {
@@ -1331,11 +1383,11 @@ ContinueOpenWindow:
     //  \Documents is a good directory to use
     ChangeCurrDirToDocuments();
 
-    CheckForUpdateAsync(win, UpdateCheck::Automatic);
+    StartAsyncUpdateCheck(win, UpdateCheck::Automatic);
 
     BringWindowToTop(win->hwndFrame);
 
-    DeleteStaleFilesAsync();
+    StartDeleteStaleFiles();
 
     exitCode = RunMessageLoop();
     SafeCloseHandle(&hMutex);
@@ -1408,6 +1460,7 @@ Exit:
 
     ShutdownCleanup();
     EngineEbookCleanup();
+    FreeCustomCommands();
 
     // it's still possible to crash after this (destructors of static classes,
     // atexit() code etc.) point, but it's very unlikely

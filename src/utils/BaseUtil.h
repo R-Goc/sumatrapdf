@@ -595,29 +595,46 @@ struct AtomicInt {
     volatile LONG val = 0;
 };
 
-typedef void (*funcPtr)(void*);
+using func0Ptr = void (*)(void*);
+using funcVoidPtr = void (*)();
+
+#define kVoidFunc0 (void*)-1
 
 // the simplest possible function that ties a function and a single argument to it
 // we get type safety and convenience with mkFunc()
 struct Func0 {
-    funcPtr fn = nullptr;
+    void* fn = nullptr;
     void* userData = nullptr;
 
     Func0() = default;
+    Func0(const Func0& that) {
+        this->fn = that.fn;
+        this->userData = that.userData;
+    }
     ~Func0() = default;
 
     bool IsEmpty() const {
         return fn == nullptr;
     }
-    void Call() {
-        fn(userData);
+    void Call() const {
+        if (!fn) {
+            return;
+        }
+        if (userData == kVoidFunc0) {
+            auto func = (funcVoidPtr)fn;
+            func();
+            return;
+        }
+        auto func = (func0Ptr)fn;
+        func(userData);
     }
 };
+Func0 MkFuncVoid(funcVoidPtr fn);
 
 template <typename T>
-Func0 mkFunc0(void (*fn)(T*), T* d) {
+Func0 MkFunc0(void (*fn)(T*), T* d) {
     auto res = Func0{};
-    res.fn = (funcPtr)fn;
+    res.fn = (func0Ptr)fn;
     res.userData = (void*)d;
     return res;
 }
@@ -634,13 +651,15 @@ struct Func1 {
         return fn == nullptr;
     }
     void Call(T* arg) {
-        fn(userData, arg);
+        if (fn) {
+            fn(userData, arg);
+        }
     }
 };
 
 template <typename T1, typename T2>
-Func1<T2> mkFunc1(void (*fn)(T1*, T2*), T2* d) {
-    auto res = Func1<T1>{};
+Func1<T2> MkFunc1(void (*fn)(T1*, T2*), T1* d) {
+    auto res = Func1<T2>{};
     using fptr = void (*)(void*, T2*);
     res.fn = (fptr)fn;
     res.userData = (void*)d;

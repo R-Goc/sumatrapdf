@@ -854,7 +854,7 @@ static bool LoadImageDir(EngineImageDir* e, const char* dir) {
         return false;
     }
 
-    SortNatural(e->pageFileNames);
+    SortNatural(&e->pageFileNames);
 
     for (int i = 0; i < nFiles; i++) {
         ImagePageInfo* pi = new ImagePageInfo();
@@ -1303,7 +1303,7 @@ TempStr EngineCbx::GetPropertyTemp(const char* name) {
         if (cip.propAuthors.Size() == 0) {
             return nullptr;
         }
-        return JoinTemp(cip.propAuthors, ", ");
+        return JoinTemp(&cip.propAuthors, ", ");
     }
 
     if (str::Eq(name, kPropCreationDate)) {

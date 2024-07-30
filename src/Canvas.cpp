@@ -54,7 +54,7 @@
 
 #include "utils/Log.h"
 
-Kind kNotifGroupAnnotation = "notifAnnotation";
+Kind kNotifAnnotation = "notifAnnotation";
 
 // Timer for mouse wheel smooth scrolling
 constexpr UINT_PTR kSmoothScrollTimerID = 6;
@@ -342,7 +342,7 @@ static void OnMouseMove(MainWindow* win, int x, int y, WPARAM) {
     }
 
     Point pos{x, y};
-    NotificationWnd* cursorPosNotif = GetNotificationForGroup(win->hwndCanvas, kNotifGroupCursorPos);
+    NotificationWnd* cursorPosNotif = GetNotificationForGroup(win->hwndCanvas, kNotifCursorPos);
 
     if (win->dragStartPending) {
         if (!IsDragDistance(x, win->dragStart.x, y, win->dragStart.y)) {
@@ -367,10 +367,10 @@ static void OnMouseMove(MainWindow* win, int x, int y, WPARAM) {
                     if (annot) {
                         // auto r = annot->bounds;
                         // logf("new pos: %d-%d, size: %d-%d\n", (int)r.x, (int)r.y, (int)r.dx, (int)r.dy);
-                        RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupAnnotation);
+                        RemoveNotificationsForGroup(win->hwndCanvas, kNotifAnnotation);
                         NotificationCreateArgs args;
                         args.hwndParent = win->hwndCanvas;
-                        args.groupId = kNotifGroupAnnotation;
+                        args.groupId = kNotifAnnotation;
                         args.timeoutMs = -1;
                         TempStr name = annot ? AnnotationReadableNameTemp(annot->type) : (TempStr) "none";
                         args.msg = str::FormatTemp(_TRN("%s annotation. Ctrl+click to edit."), name);
@@ -379,7 +379,7 @@ static void OnMouseMove(MainWindow* win, int x, int y, WPARAM) {
                 }
             }
             if (!annot) {
-                RemoveNotificationsForGroup(win->hwndCanvas, kNotifGroupAnnotation);
+                RemoveNotificationsForGroup(win->hwndCanvas, kNotifAnnotation);
             }
             win->annotationUnderCursor = annot;
             break;
@@ -402,7 +402,7 @@ static void OnMouseMove(MainWindow* win, int x, int y, WPARAM) {
             win->selectionRect.dy = y - win->selectionRect.y;
             win->selectionMeasure = dm->CvtFromScreen(win->selectionRect).Size();
             OnSelectionEdgeAutoscroll(win, x, y);
-            RepaintAsync(win, 0);
+            ScheduleRepaint(win, 0);
             break;
         }
         case MouseAction::Dragging: {
@@ -568,7 +568,7 @@ static void OnMouseLeftButtonUp(MainWindow* win, int x, int y, WPARAM key) {
             DeleteOldSelectionInfo(win, true);
             tab->selectionOnPage = SelectionOnPage::FromRectangle(dm, dm->CvtToScreen(pageNo, link->GetRect()));
             win->showSelection = tab->selectionOnPage != nullptr;
-            RepaintAsync(win, 0);
+            ScheduleRepaint(win, 0);
         }
         SetCursorCached(IDC_ARROW);
         win->ctrl->HandleLink(dest, win->linkHandler);
@@ -585,7 +585,7 @@ static void OnMouseLeftButtonUp(MainWindow* win, int x, int y, WPARAM key) {
     if (win->fwdSearchMark.show && gGlobalPrefs->forwardSearch.highlightPermanent) {
         /* if there's a permanent forward search mark, hide it */
         win->fwdSearchMark.show = false;
-        RepaintAsync(win, 0);
+        ScheduleRepaint(win, 0);
         return;
     }
 
@@ -643,7 +643,7 @@ static void OnMouseLeftButtonDblClk(MainWindow* win, int x, int y, WPARAM key) {
             PointF pt = dm->CvtFromScreen(mousePos, pageNo);
             dm->textSelection->SelectWordAt(pageNo, pt.x, pt.y);
             UpdateTextSelection(win, false);
-            RepaintAsync(win, 0);
+            ScheduleRepaint(win, 0);
         }
         return;
     }
@@ -661,7 +661,7 @@ static void OnMouseLeftButtonDblClk(MainWindow* win, int x, int y, WPARAM key) {
         DeleteOldSelectionInfo(win, true);
         win->CurrentTab()->selectionOnPage = SelectionOnPage::FromRectangle(dm, rc);
         win->showSelection = win->CurrentTab()->selectionOnPage != nullptr;
-        RepaintAsync(win, 0);
+        ScheduleRepaint(win, 0);
     }
 }
 
@@ -993,7 +993,7 @@ static void DrawDocument(MainWindow* win, HDC hdc, RECT* rcArea) {
             SetTextColor(hdc, col);
             if (renderDelay != RENDER_DELAY_FAILED) {
                 if (renderDelay < REPAINT_MESSAGE_DELAY_IN_MS) {
-                    RepaintAsync(win, REPAINT_MESSAGE_DELAY_IN_MS / 4);
+                    ScheduleRepaint(win, REPAINT_MESSAGE_DELAY_IN_MS / 4);
                 } else {
                     DrawCenteredText(hdc, bounds, _TRA("Please wait - rendering..."), isRtl);
                 }
@@ -1080,7 +1080,7 @@ static LRESULT OnSetCursorMouseNone(MainWindow* win, HWND hwnd) {
         win->DeleteToolTip();
         return FALSE;
     }
-    if (GetNotificationForGroup(win->hwndCanvas, kNotifGroupCursorPos)) {
+    if (GetNotificationForGroup(win->hwndCanvas, kNotifCursorPos)) {
         SetCursorCached(IDC_CROSS);
         return TRUE;
     }
@@ -1568,6 +1568,14 @@ static LRESULT OnGesture(MainWindow* win, UINT msg, WPARAM wp, LPARAM lp) {
 static LRESULT WndProcCanvasFixedPageUI(MainWindow* win, HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // DbgLogMsg("canvas:", hwnd, msg, wp, lp);
 
+    if (!IsMainWindowValid(win)) {
+        bool hwndValid = IsWindow(hwnd);
+        logf("WndProcCanvasFixedPageUI: MainWindow win: 0x%p is no longer valid, msg: %d, hwnd valid: %d\n", win,
+             (int)msg, (int)hwndValid);
+        ReportIfQuick(true);
+        return 0;
+    }
+
     int x = GET_X_LPARAM(lp);
     int y = GET_Y_LPARAM(lp);
     switch (msg) {
@@ -1726,19 +1734,33 @@ static LRESULT WndProcCanvasLoadError(MainWindow* win, HWND hwnd, UINT msg, WPAR
 
 ///// methods needed for all types of canvas /////
 
-void RepaintAsync(MainWindow* win, int delayInMs) {
+struct RepaintTaskData {
+    MainWindow* win = nullptr;
+    int delayInMs = 0;
+};
+
+static void RepaintTask(RepaintTaskData* d) {
+    AutoDelete delData(d);
+
+    auto win = d->win;
+    if (!IsMainWindowValid(win)) {
+        return;
+    }
+    if (!d->delayInMs) {
+        WndProcCanvas(win->hwndCanvas, WM_TIMER, REPAINT_TIMER_ID, 0);
+    } else if (!win->delayedRepaintTimer) {
+        win->delayedRepaintTimer = SetTimer(win->hwndCanvas, REPAINT_TIMER_ID, (uint)d->delayInMs, nullptr);
+    }
+}
+
+void ScheduleRepaint(MainWindow* win, int delayInMs) {
+    auto data = new RepaintTaskData;
+    data->win = win;
+    data->delayInMs = delayInMs;
+    auto fn = MkFunc0<RepaintTaskData>(RepaintTask, data);
     // even though RepaintAsync is mostly called from the UI thread,
     // we depend on the repaint message to happen asynchronously
-    uitask::Post(TaskRepaintAsync, [win, delayInMs] {
-        if (!MainWindowStillValid(win)) {
-            return;
-        }
-        if (!delayInMs) {
-            WndProcCanvas(win->hwndCanvas, WM_TIMER, REPAINT_TIMER_ID, 0);
-        } else if (!win->delayedRepaintTimer) {
-            win->delayedRepaintTimer = SetTimer(win->hwndCanvas, REPAINT_TIMER_ID, (uint)delayInMs, nullptr);
-        }
-    });
+    uitask::Post(fn, nullptr);
 }
 
 static void OnTimer(MainWindow* win, HWND hwnd, WPARAM timerId) {
@@ -1782,9 +1804,9 @@ static void OnTimer(MainWindow* win, HWND hwnd, WPARAM timerId) {
             } else if (win->fwdSearchMark.hideStep >= HIDE_FWDSRCHMARK_STEPS) {
                 KillTimer(hwnd, HIDE_FWDSRCHMARK_TIMER_ID);
                 win->fwdSearchMark.show = false;
-                RepaintAsync(win, 0);
+                ScheduleRepaint(win, 0);
             } else {
-                RepaintAsync(win, 0);
+                ScheduleRepaint(win, 0);
             }
             break;
 
@@ -1855,7 +1877,7 @@ static void OnDropFiles(MainWindow* win, HDROP hDrop, bool dragFinish) {
             win = CreateAndShowMainWindow(nullptr);
             args.win = win;
         }
-        LoadDocumentAsync(&args);
+        StartLoadDocument(&args);
     }
 }
 

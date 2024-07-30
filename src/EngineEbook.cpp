@@ -624,15 +624,15 @@ TempStr EngineEbook::ExtractFontListTemp() {
                 continue;
             }
             char* fontName = ToUtf8Temp(fontNameW);
-            AppendIfNotExists(fonts, fontName);
+            AppendIfNotExists(&fonts, fontName);
         }
     }
     if (fonts.Size() == 0) {
         return nullptr;
     }
 
-    SortNatural(fonts);
-    return JoinTemp(fonts, "\n");
+    SortNatural(&fonts);
+    return JoinTemp(&fonts, "\n");
 }
 
 static void AppendTocItem(TocItem*& root, TocItem* item, int level) {

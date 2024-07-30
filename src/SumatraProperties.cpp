@@ -272,7 +272,7 @@ static TempStr FormatPermissionsTemp(DocController* ctrl) {
         denials.Append(_TRA("copying text"));
     }
 
-    return JoinTemp(denials, ", ");
+    return JoinTemp(&denials, ", ");
 }
 
 static Rect CalcPropertiesLayout(PropertiesLayout* layoutData, HDC hdc) {
@@ -431,7 +431,7 @@ static bool CreatePropertiesWindow(HWND hParent, PropertiesLayout* layoutData, b
 
         layoutData->btnCopyToClipboard = b;
         HwndSetRtl(b->hwnd, isRtl);
-        b->onClicked = mkFunc0(CopyPropertiesToClipboard, layoutData);
+        b->onClicked = MkFunc0(CopyPropertiesToClipboard, layoutData);
     }
 
     if (!extended) {
@@ -444,7 +444,7 @@ static bool CreatePropertiesWindow(HWND hParent, PropertiesLayout* layoutData, b
 
         HwndSetRtl(b->hwnd, isRtl);
         layoutData->btnGetFonts = b;
-        b->onClicked = mkFunc0(ShowExtendedProperties, layoutData);
+        b->onClicked = MkFunc0(ShowExtendedProperties, layoutData);
     }
 
     // get the dimensions required for the about box's content
@@ -502,7 +502,7 @@ static void AddPdfFileStructure(DocController* ctrl, PropertiesLayout* layoutDat
         return;
     }
     StrVec parts;
-    Split(parts, fstruct, ",", true);
+    Split(&parts, fstruct, ",", true);
 
     StrVec props;
 
@@ -525,7 +525,7 @@ static void AddPdfFileStructure(DocController* ctrl, PropertiesLayout* layoutDat
         props.Append("PDF/E (ISO 24517)");
     }
 
-    TempStr val = JoinTemp(props, ", ");
+    TempStr val = JoinTemp(&props, ", ");
     layoutData->AddProperty(_TRA("PDF Optimizations:"), val);
 }
 

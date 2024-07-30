@@ -145,8 +145,7 @@ ACCEL gBuiltInAccelerators[] = {
     {FCONTROL | FVIRTKEY, 'G', CmdGoToPage},
     {0, 'g', CmdGoToPage},
     {FCONTROL | FVIRTKEY, 'K', CmdCommandPalette},
-    {FSHIFT | FCONTROL | FVIRTKEY, 'K', CmdCommandPaletteNoFiles},
-    {FALT | FVIRTKEY, 'K', CmdCommandPaletteOnlyTabs},
+    //{FALT | FVIRTKEY, 'K', CmdCommandPaletteOnlyTabs}, // removed in 3.6
     {FSHIFT | FCONTROL | FVIRTKEY, 'S', CmdSaveAnnotations},
     {FCONTROL | FVIRTKEY, 'P', CmdPrint},
     {FCONTROL | FVIRTKEY, 'Q', CmdExit},
@@ -191,6 +190,7 @@ ACCEL gBuiltInAccelerators[] = {
     {FSHIFT | FCONTROL | FVIRTKEY, 'T', CmdReopenLastClosedFile},
     {FCONTROL | FVIRTKEY, VK_NEXT, CmdNextTab},
     {FCONTROL | FVIRTKEY, VK_PRIOR, CmdPrevTab},
+    {FCONTROL | FVIRTKEY, VK_TAB, CmdSmartTabSwitch},
     {FVIRTKEY, VK_F1, CmdHelpOpenManual},
 
     // need 2 entries for 'a' and 'Shift + a'
@@ -312,6 +312,11 @@ again:
     }
     accel.key = c;
     return true;
+}
+
+bool IsValidShortcutString(const char* shortcut) {
+    ACCEL accel;
+    return ParseShortcut(shortcut, accel);
 }
 
 static const char* getVirt(BYTE key, bool isEng) {
@@ -618,87 +623,62 @@ the latest version */
 void CreateSumatraAcceleratorTable() {
     ReportIf(gAccelTables[0] || gAccelTables[1] || gAccelTables[2]);
 
-    int nBuiltIn = (int)dimof(gBuiltInAccelerators);
-    int nCustomShortcuts = gGlobalPrefs->shortcuts->Size();
-    int nExternalViewers = gGlobalPrefs->externalViewers->Size();
+    int nMax = (int)dimof(gBuiltInAccelerators);
+    auto curr = gFirstCustomCommand;
+    while (curr) {
+        if ((curr->id > 0) && !str::IsEmptyOrWhiteSpace(curr->key)) {
+            nMax++;
+        }
+        curr = curr->next;
+    }
 
-    // build a combined accelerator table of those defined in settings file
-    // and built-in shortcuts. Custom shortcuts over-ride built-in
-    int nMax = nBuiltIn + nCustomShortcuts + nExternalViewers;
     // https://github.com/sumatrapdfreader/sumatrapdf/issues/2981
     // sizeof(ACCEL) is 6 so odd number will cause treeViewAccels to
     // be mis-aligined. Rounding to 2 should be enoug, do 4 for extra safety
     nMax = RoundUp(nMax, 4);
     ACCEL* accels = AllocArray<ACCEL>(nMax);
-    int nAccels = 0;
     // perf: only 1 allocation for 2 arrays
-    ACCEL* toFreeAccels = AllocArray<ACCEL>(nMax * 2);
-    ACCEL* editAccels = toFreeAccels;
-    ACCEL* treeViewAccels = toFreeAccels + nMax;
+    ACCEL* editAccels = AllocArray<ACCEL>(nMax * 2);
+    ACCEL* treeViewAccels = editAccels + nMax;
+
+    int nAccels = 0;
     int nEditAccels = 0;
     int nTreeViewAccels = 0;
 
-    for (auto& ev : *gGlobalPrefs->externalViewers) {
-        if (str::IsEmptyOrWhiteSpaceOnly(ev->key)) {
-            continue;
-        }
-        ACCEL accel{};
-        accel.cmd = ev->cmdId;
-        if (!ParseShortcut(ev->key, accel)) {
-            // TODO: make it a notification
-            logf("CreateSumatraAcceleratorTable: bad shortcut '%s' for external viewer '%s'\n", ev->key,
-                 ev->commandLine);
-            continue;
-        }
-        accels[nAccels++] = accel;
-        if (IsSafeAccel(accel)) {
-            editAccels[nEditAccels++] = accel;
-            treeViewAccels[nTreeViewAccels++] = accel;
-        }
-    }
-
-    for (Shortcut* shortcut : *gGlobalPrefs->shortcuts) {
-        int cmdId = ParseCommand(shortcut->cmd);
-        if (cmdId < 0) {
-            continue;
-        }
-        ACCEL accel{};
-        accel.cmd = cmdId;
-        if (!ParseShortcut(shortcut->key, accel)) {
-            // TODO: make it a notification
-            logf("CreateSumatraAcceleratorTable: bad shortcut '%s'\n", shortcut->key);
-            continue;
-        }
-        accels[nAccels++] = accel;
-        if (IsSafeAccel(accel)) {
-            editAccels[nEditAccels++] = accel;
-            treeViewAccels[nTreeViewAccels++] = accel;
-        }
-        if (cmdId == CmdToggleBookmarks && !IsSafeAccel(accel)) {
-            // https://github.com/sumatrapdfreader/sumatrapdf/issues/2832
-            treeViewAccels[nTreeViewAccels++] = accel;
-        }
-    }
-
-    // shortucts for external viewers
-    // for (ExternalViewer* ev : *gGlobalPrefs->externalViewers) {
-    //}
-
-    // add built-in but only if the shortcut doesn't conflict with custom shortcut
-    nCustomShortcuts = nAccels;
-    for (ACCEL accel : gBuiltInAccelerators) {
+    auto addShortcutIfNotExists = [&](ACCEL accel) -> void {
         bool shortcutExists = false;
         for (int i = 0; !shortcutExists && i < nAccels; i++) {
             shortcutExists = SameAccelKey(accels[i], accel);
         }
         if (shortcutExists) {
-            continue;
+            return;
         }
         accels[nAccels++] = accel;
         if (IsSafeAccel(accel)) {
             editAccels[nEditAccels++] = accel;
             treeViewAccels[nTreeViewAccels++] = accel;
         }
+        if (((int)accel.cmd == (int)CmdToggleBookmarks) && !IsSafeAccel(accel)) {
+            // https://github.com/sumatrapdfreader/sumatrapdf/issues/2832
+            treeViewAccels[nTreeViewAccels++] = accel;
+        }
+    };
+
+    curr = gFirstCustomCommand;
+    while (curr) {
+        if ((curr->id > 0) && !str::IsEmptyOrWhiteSpace(curr->key)) {
+            ACCEL accel{};
+            accel.cmd = curr->id;
+            if (ParseShortcut(curr->key, accel)) {
+                addShortcutIfNotExists(accel);
+            }
+        }
+        curr = curr->next;
+    }
+
+    // add built-in but only if the shortcut doesn't conflict with custom shortcut
+    for (ACCEL accel : gBuiltInAccelerators) {
+        addShortcutIfNotExists(accel);
     }
 
     gAccels = accels;
@@ -711,7 +691,7 @@ void CreateSumatraAcceleratorTable() {
     gAccelTables[2] = CreateAcceleratorTableW(treeViewAccels, nTreeViewAccels);
     ReportIf(gAccelTables[2] == nullptr);
 
-    free(toFreeAccels);
+    free(editAccels);
 }
 
 void FreeAcceleratorTables() {

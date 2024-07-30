@@ -253,7 +253,7 @@ int RecentlyCloseDocumentsCount() {
 }
 
 void RememberRecentlyClosedDocument(const char* path) {
-    if (str::IsEmptyOrWhiteSpaceOnly(path)) {
+    if (str::IsEmptyOrWhiteSpace(path)) {
         return;
     }
     gClosedDocuments.Append(path);
@@ -329,17 +329,6 @@ struct FileExistenceData {
 
 extern void MaybeRedrawHomePage();
 
-static void HideMissingFiles(const StrVec& missing) {
-    if (missing.Size() == 0) {
-        return;
-    }
-    for (const char* path : missing) {
-        gFileHistory.MarkFileInexistent(path, true);
-    }
-    // update the Frequently Read page in case it's been displayed already
-    MaybeRedrawHomePage();
-}
-
 // document path is either a file or a directory
 // (when browsing images inside directory).
 bool DocumentPathExists(const char* path) {
@@ -357,7 +346,16 @@ bool DocumentPathExists(const char* path) {
     return file::Exists(realPath);
 }
 
-static void FileExistenceCheckerThread(FileExistenceData* d) {
+static void HideMissingFiles(FileExistenceData* d) {
+    for (const char* path : d->missing) {
+        gFileHistory.MarkFileInexistent(path, true);
+    }
+    // update the Frequently Read page in case it's been displayed already
+    MaybeRedrawHomePage();
+    delete d;
+}
+
+static void FileExistenceCheckerAsync(FileExistenceData* d) {
     StrVec& toCheck = d->toCheck;
     // filters all file paths on network drives, removable drives and
     // all paths which still exist from the list (remaining paths will
@@ -379,7 +377,8 @@ static void FileExistenceCheckerThread(FileExistenceData* d) {
         logf("FileExistenceChecker: missing '%s' at %d\n", path, i + 1);
     }
 
-    uitask::Post(TaskHideMissingFiles, [d] { HideMissingFiles(d->missing); });
+    Func0 fn = MkFunc0<FileExistenceData>(HideMissingFiles, d);
+    uitask::Post(fn, "TaskHideMissingFiles");
 }
 
 static void GetFilePathsToCheck(StrVec& toCheck) {
@@ -397,7 +396,7 @@ static void GetFilePathsToCheck(StrVec& toCheck) {
     for (size_t i = 0; i < iMax; i++) {
         fs = frequencyList.at(i);
         char* fp = fs->filePath;
-        AppendIfNotExists(toCheck, fp);
+        AppendIfNotExists(&toCheck, fp);
     }
 }
 
@@ -408,6 +407,6 @@ void RemoveNonExistentFilesAsync() {
         return;
     }
     logf("RemoveNonExistentFilesAsync: starting FileExistenceCheckerThread to check %d files\n", d->toCheck.Size());
-    auto fn = [d] { FileExistenceCheckerThread(d); };
+    Func0 fn = MkFunc0<FileExistenceData>(FileExistenceCheckerAsync, d);
     RunAsync(fn, "FileExistenceThread");
 }

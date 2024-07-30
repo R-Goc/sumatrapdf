@@ -81,8 +81,8 @@ bool CreateShortcut(const char* shortcutPath, const char* exePath, const char* a
                     const char* description = nullptr, int iconIndex = 0);
 IDataObject* GetDataObjectForFile(const char* filePath, HWND hwnd = nullptr);
 
-HANDLE LaunchProces(const char* exe, const char* cmdLine);
-HANDLE LaunchProcess(const char* cmdLine, const char* currDir = nullptr, DWORD flags = 0);
+HANDLE LaunchProcessWithCmdLine(const char* exe, const char* cmdLine);
+HANDLE LaunchProcessInDir(const char* cmdLine, const char* currDir = nullptr, DWORD flags = 0);
 bool CreateProcessHelper(const char* exe, const char* args);
 bool LaunchFileShell(const char* path, const char* params = nullptr, const char* verb = nullptr, bool hidden = false);
 bool LaunchBrowser(const char* url);
@@ -125,6 +125,7 @@ int HdcDrawText(HDC hdc, const char* s, const Point& pos, uint fmt, HFONT font =
 Size HdcMeasureText(HDC hdc, const char* s, uint format, HFONT font);
 Size HdcMeasureText(HDC hdc, const char* s, HFONT font = nullptr);
 
+HWND HwndSetFocus(HWND hwnd);
 bool HwndIsFocused(HWND);
 bool IsCursorOverWindow(HWND);
 

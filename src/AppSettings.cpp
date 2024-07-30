@@ -96,9 +96,24 @@ static void setMinMax(int& i, int minVal, int maxVal) {
     }
 }
 
+static void SetCommandNameAndShortcut(CustomCommand* cmd, const char* name, const char* key) {
+    if (!cmd) {
+        return;
+    }
+    cmd->name = str::IsEmptyOrWhiteSpace(name) ? nullptr : str::Dup(name);
+    if (str::IsEmptyOrWhiteSpace(key)) {
+        return;
+    }
+    if (!IsValidShortcutString(key)) {
+        logf("SetCommandNameAndShortcut: '%s' is not a valid shortcut for '%s'\n", key, cmd->definition);
+        return;
+    }
+    cmd->key = str::Dup(key);
+}
+
 /* for every selection handler defined by user in advanced settings, create
     a command that will be inserted into a menu item */
-static void CreateUserSelectionHandlerCommands() {
+static void CreateSelectionHandlerCommands() {
     if (!HasPermission(Perm::InternetAccess) || !HasPermission(Perm::CopySelection)) {
         // TODO: when we add exe handlers, only filter the URL ones
         return;
@@ -109,14 +124,35 @@ static void CreateUserSelectionHandlerCommands() {
             // can happen for bad selection handler definition
             continue;
         }
-        if (str::IsEmptyOrWhiteSpaceOnly(sh->url) || str::IsEmptyOrWhiteSpaceOnly(sh->name)) {
+        if (str::IsEmptyOrWhiteSpace(sh->url) || str::IsEmptyOrWhiteSpace(sh->name)) {
             continue;
         }
 
-        CommandArg* args = NewStringArg(kCmdArgName, sh->name);
-        CommandArg* arg = NewStringArg(kCmdArgURL, sh->url);
-        InsertArg(&args, arg);
-        CreateCustomCommand(sh->url, CmdSelectionHandler, args);
+        CommandArg* args = NewStringArg(kCmdArgURL, sh->url);
+        auto cmd = CreateCustomCommand(sh->url, CmdSelectionHandler, args);
+        SetCommandNameAndShortcut(cmd, sh->name, sh->key);
+    }
+}
+
+static void CreateExternalViewersCommands() {
+    for (ExternalViewer* ev : *gGlobalPrefs->externalViewers) {
+        if (!ev || str::IsEmptyOrWhiteSpace(ev->commandLine)) {
+            continue;
+        }
+        CommandArg* args = NewStringArg(kCmdArgCommandLine, ev->commandLine);
+        if (!str::IsEmptyOrWhiteSpace(ev->filter)) {
+            auto arg = NewStringArg(kCmdArgFilter, ev->filter);
+            InsertArg(&args, arg);
+        }
+        auto cmd = CreateCustomCommand("", CmdViewWithExternalViewer, args);
+        SetCommandNameAndShortcut(cmd, ev->name, ev->key);
+    }
+}
+
+static void CreateCustomCommands() {
+    for (Shortcut* shortcut : *gGlobalPrefs->shortcuts) {
+        auto cmd = CreateCommandFromDefinition(shortcut->cmd);
+        SetCommandNameAndShortcut(cmd, shortcut->name, shortcut->key);
     }
 }
 
@@ -215,12 +251,14 @@ bool LoadSettings() {
     ResetCachedFonts();
 
     // re-create commands
-    freeCustomCommands();
+    FreeCustomCommands();
     // Note: some are also created in ReCreateSumatraAcceleratorTable()
-    CreateUserSelectionHandlerCommands();
     CreateThemeCommands();
     CreateExternalViewersCommands();
+    CreateSelectionHandlerCommands();
+    CreateCustomCommands();
 
+    // re-create accelerators
     FreeAcceleratorTables();
     CreateSumatraAcceleratorTable();
 
@@ -329,10 +367,10 @@ bool SaveSettings() {
 
 // refresh the preferences when a different SumatraPDF process saves them
 // or if they are edited by the user using a text editor
-bool ReloadSettings() {
+static void ReloadSettings() {
     TempStr settingsPath = GetSettingsPathTemp();
     if (!file::Exists(settingsPath)) {
-        return false;
+        return;
     }
 
     // make sure that the settings file is readable - else wait
@@ -350,12 +388,12 @@ bool ReloadSettings() {
         }
     }
     if (!ok) {
-        return false;
+        return;
     }
 
     FILETIME time = file::GetModificationTime(settingsPath);
     if (FileTimeEq(time, gGlobalPrefs->lastPrefUpdate)) {
-        return true;
+        return;
     }
 
     const char* uiLanguage = str::DupTemp(gGlobalPrefs->uiLanguage);
@@ -389,7 +427,6 @@ bool ReloadSettings() {
 
     UpdateDocumentColors();
     UpdateFixedPageScrollbarsVisibility();
-    return true;
 }
 
 void CleanUpSettings() {
@@ -398,7 +435,8 @@ void CleanUpSettings() {
 }
 
 void schedulePrefsReload() {
-    uitask::Post(TaskReloadSettings, ReloadSettings);
+    auto fn = MkFuncVoid(ReloadSettings);
+    uitask::Post(fn, "TaskReloadSettings");
 }
 
 void RegisterSettingsForFileChanges() {

@@ -33,7 +33,6 @@ struct ArgSpec {
 static const ArgSpec argSpecs[] = {
     {CmdSelectionHandler, kCmdArgURL, CommandArg::Type::String}, // default
     {CmdSelectionHandler, kCmdArgExe, CommandArg::Type::String},
-    {CmdSelectionHandler, kCmdArgName, CommandArg::Type::String},
 
     {CmdExec, kCmdArgExe, CommandArg::Type::String}, // default
     {CmdExec, kCmdArgFilter, CommandArg::Type::String},
@@ -42,13 +41,16 @@ static const ArgSpec argSpecs[] = {
     {CmdCreateAnnotText, kCmdArgColor, CommandArg::Type::Color}, // default
     {CmdCreateAnnotText, kCmdArgOpenEdit, CommandArg::Type::Bool},
     {CmdCreateAnnotText, kCmdArgCopyToClipboard, CommandArg::Type::Bool},
+    {CmdCreateAnnotText, kCmdArgSetContent, CommandArg::Type::Bool},
 
     // and  CmdScrollDown, CmdGoToNextPage, CmdGoToPrevPage
     {CmdScrollUp, kCmdArgN, CommandArg::Type::Int}, // default
 
-    {CmdSetTheme, kCmdArgName, CommandArg::Type::String}, // default
+    {CmdSetTheme, kCmdArgTheme, CommandArg::Type::String}, // default
 
     {CmdZoomCustom, kCmdArgLevel, CommandArg::Type::String}, // default
+
+    {CmdCommandPalette, kCmdArgMode, CommandArg::Type::String}, // default
 
     {CmdNone, "", CommandArg::Type::None}, // sentinel
 };
@@ -155,6 +157,7 @@ static int gNextCustomCommandId = (int)CmdFirstCustom;
 CustomCommand::~CustomCommand() {
     FreeCommandArgs(firstArg);
     str::Free(name);
+    str::Free(key);
     str::Free(idStr);
     str::Free(definition);
 }
@@ -182,7 +185,7 @@ CustomCommand* FindCustomCommand(int cmdId) {
     return nullptr;
 }
 
-void freeCustomCommands() {
+void FreeCustomCommands() {
     CustomCommand* next;
     CustomCommand* curr = gFirstCustomCommand;
     while (curr) {
@@ -373,26 +376,25 @@ CommandArg* TryParseNamedArg(int firstArgIdx, const char** argsInOut) {
     return ParseArgOfType(argName, type, val);
 }
 
-// some commands can accept arguments. For those we have to create CustomCommand that
-// binds original command id and an arg and creates a unique command id
-// we return -1 if unkown command or command doesn't take an argument or argument is invalid
-int ParseCommand(const char* definition) {
+// create custom command as defined in Shortcuts section in advanced settings.
+// we return null if unkown command
+CustomCommand* CreateCommandFromDefinition(const char* definition) {
     StrVec parts;
-    Split(parts, definition, " ", true, 2);
+    Split(&parts, definition, " ", true, 2);
     const char* cmd = parts[0];
     int cmdId = GetCommandIdByName(cmd);
     if (cmdId < 0) {
         // TODO: make it a notification
-        logf("ParseCommand: unknown cmd name in '%s'\n", definition);
-        return -1;
+        logf("CreateCommandFromDefinition: unknown cmd name in '%s'\n", definition);
+        return nullptr;
     }
     if (parts.Size() == 1) {
-        return cmdId;
+        // no arguments
+        return CreateCustomCommand(definition, cmdId, nullptr);
     }
 
-    // those commands take arguments
-    int argCmdId = cmdId;
     // some commands share the same arguments, so cannonalize them
+    int argCmdId = cmdId;
     switch (cmdId) {
         case CmdCreateAnnotText:
         case CmdCreateAnnotLink:
@@ -430,8 +432,8 @@ int ParseCommand(const char* definition) {
         int id = argSpecs[i].cmdId;
         if (id == CmdNone) {
             // the command doesn't accept any arguments
-            logf("ParseCommand: cmd '%s' doesn't accept arguments\n", definition);
-            return cmdId;
+            logf("CreateCommandFromDefinition: cmd '%s' doesn't accept arguments\n", definition);
+            return CreateCustomCommand(definition, cmdId, nullptr);
         }
         if (id != argCmdId) {
             continue;
@@ -441,9 +443,10 @@ int ParseCommand(const char* definition) {
     }
     if (firstArgIdx < 0) {
         // shouldn't happen, we already filtered commands without arguments
-        logf("ParseCommand: didn't find arguments for: '%s', cmdId: %d, argCmdId: '%d'\n", definition, cmdId, argCmdId);
+        logf("CreateCommandFromDefinition: didn't find arguments for: '%s', cmdId: %d, argCmdId: '%d'\n", definition,
+             cmdId, argCmdId);
         ReportIf(true);
-        return -1;
+        return nullptr;
     }
 
     const char* currArg = parts[1];
@@ -460,8 +463,19 @@ int ParseCommand(const char* definition) {
         }
     }
     if (!firstArg) {
-        logf("ParseCommand: failed to parse arguments for '%s'\n", definition);
-        return -1;
+        logf("CreateCommandFromDefinition: failed to parse arguments for '%s'\n", definition);
+        return nullptr;
+    }
+
+    if (cmdId == CmdCommandPalette && firstArg) {
+        // validate mode
+        const char* s = firstArg->strVal;
+        static SeqStrings validModes = ">\0#\0@\0"; // TODO: "@@\0" ?
+        if (seqstrings::StrToIdx(validModes, s) < 0) {
+            logf("CreateCommandFromDefinition: invalid CmdCommandPalette mode in '%s'\n", definition);
+            FreeCommandArgs(firstArg);
+            firstArg = nullptr;
+        }
     }
 
     if (cmdId == CmdZoomCustom) {
@@ -470,14 +484,14 @@ int ParseCommand(const char* definition) {
         float zoomVal = ZoomFromString(firstArg->strVal, 0);
         if (0 == zoomVal) {
             FreeCommandArgs(firstArg);
-            logf("ParseCommand: failed to parse arguments in '%s'\n", definition);
-            return -1;
+            logf("CreateCommandFromDefinition: failed to parse arguments in '%s'\n", definition);
+            return nullptr;
         }
         firstArg->type = CommandArg::Type::Float;
         firstArg->floatVal = zoomVal;
     }
     auto res = CreateCustomCommand(definition, cmdId, firstArg);
-    return res->id;
+    return res;
 }
 
 CommandArg* GetCommandArg(CustomCommand* cmd, const char* name) {
