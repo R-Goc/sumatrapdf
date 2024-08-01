@@ -390,13 +390,12 @@ void EngineMulti::UpdatePagesForEngines(Vec<EngineInfo>& enginesInfo) {
     pageCount = nTotalPages;
     ReportIf((size_t)pageCount != pageToEngine.size());
 
-    auto verifyPages = [&nTotalPages](TocItem* ti) -> bool {
+    auto verifyPages = [](VisitTocTreeData* d) -> void {
+        auto ti = d->ti;
         if (!IsPageNavigationDestination(ti->dest)) {
-            return true;
+            return;
         }
         int pageNo = ti->pageNo;
-        ReportIf(pageNo > nTotalPages);
-        return true;
     };
 
     for (auto&& ei : enginesInfo) {
@@ -404,7 +403,8 @@ void EngineMulti::UpdatePagesForEngines(Vec<EngineInfo>& enginesInfo) {
         if (root->isUnchecked) {
             continue;
         }
-        VisitTocTree(root, verifyPages);
+        auto fn = MkFunc1Void<VisitTocTreeData*>(verifyPages);
+        VisitTocTree(root, fn);
     }
 }
 
@@ -429,15 +429,18 @@ static SeqStrings gSupportedExtsForMulti =
     ".jpg\0.jpeg\0.tga\0.gif\0.avif\0.heic\0";
 // clang-format on
 
-static bool isSupportedForMultis(WIN32_FIND_DATAW*, const char* path) {
-    char* ext = path::GetExtTemp(path);
+static void IsSupportedForMultis(void*, VisitDirData* d) {
+    char* ext = path::GetExtTemp(d->filePath);
     int idx = seqstrings::StrToIdxIS(gSupportedExtsForMulti, ext);
-    return idx >= 0;
+    if (idx < 0) {
+        d->stopTraversal = (idx < 0);
+    }
 };
 
 EngineBase* CreateEngineMultiFromDirectory(const char* dir) {
     StrVec files;
-    bool ok = CollectFilesFromDirectory(dir, files, isSupportedForMultis);
+    auto fn = MkFunc1<void, VisitDirData*>(IsSupportedForMultis, nullptr);
+    bool ok = CollectFilesFromDirectory(dir, files, fn);
     if (!ok) {
         // TODO: show error message
         return nullptr;

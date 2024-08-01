@@ -130,7 +130,6 @@
 // most common c++ includes
 #include <cstdint>
 #include <algorithm>
-#include <functional>
 #include <memory>
 #include <string>
 #include <array>
@@ -598,7 +597,7 @@ struct AtomicInt {
 using func0Ptr = void (*)(void*);
 using funcVoidPtr = void (*)();
 
-#define kVoidFunc0 (void*)-1
+#define kVoidFuncNoArg (void*)-1
 
 // the simplest possible function that ties a function and a single argument to it
 // we get type safety and convenience with mkFunc()
@@ -607,20 +606,32 @@ struct Func0 {
     void* userData = nullptr;
 
     Func0() = default;
+    // copy constructor
     Func0(const Func0& that) {
         this->fn = that.fn;
         this->userData = that.userData;
+    }
+    // copy assignment operator
+    Func0& operator=(const Func0& that) {
+        if (this != &that) {
+            this->fn = that.fn;
+            this->userData = that.userData;
+        }
+        return *this;
     }
     ~Func0() = default;
 
     bool IsEmpty() const {
         return fn == nullptr;
     }
+    bool IsValid() const {
+        return fn != nullptr;
+    }
     void Call() const {
         if (!fn) {
             return;
         }
-        if (userData == kVoidFunc0) {
+        if (userData == kVoidFuncNoArg) {
             auto func = (funcVoidPtr)fn;
             func();
             return;
@@ -641,28 +652,69 @@ Func0 MkFunc0(void (*fn)(T*), T* d) {
 
 template <typename T>
 struct Func1 {
-    void (*fn)(void*, T*) = nullptr;
+    void (*fn)(void*, T) = nullptr;
     void* userData = nullptr;
 
     Func1() = default;
+    // copy constructor
+    Func1(const Func1& that) {
+        this->fn = that.fn;
+        this->userData = that.userData;
+    }
+    // copy assignment operator
+    Func1& operator=(const Func1& that) {
+        if (this != &that) {
+            this->fn = that.fn;
+            this->userData = that.userData;
+        }
+        return *this;
+    }
     ~Func1() = default;
 
+    bool IsValid() const {
+        return fn != nullptr;
+    }
     bool IsEmpty() const {
         return fn == nullptr;
     }
-    void Call(T* arg) {
-        if (fn) {
-            fn(userData, arg);
+    void Call(T arg) const {
+        if (!fn) {
+            return;
         }
+        if (userData == kVoidFuncNoArg) {
+            using fptr = void (*)(T);
+            auto func = (fptr)fn;
+            func(arg);
+            return;
+        }
+        fn(userData, arg);
     }
 };
 
 template <typename T1, typename T2>
-Func1<T2> MkFunc1(void (*fn)(T1*, T2*), T1* d) {
+Func1<T2> MkFunc1(void (*fn)(T1*, T2), T1* d) {
     auto res = Func1<T2>{};
-    using fptr = void (*)(void*, T2*);
+    using fptr = void (*)(void*, T2);
     res.fn = (fptr)fn;
     res.userData = (void*)d;
+    return res;
+}
+
+template <typename T2>
+Func1<T2> MkFunc1Void(void (*fn)(T2)) {
+    auto res = Func1<T2>{};
+    using fptr = void (*)(void*, T2);
+    res.fn = (fptr)fn;
+    res.userData = kVoidFuncNoArg;
+    return res;
+}
+
+template <typename T1, typename T2>
+Func1<T2>* NewFunc1(void (*fn)(T1*, T2), T1* d) {
+    auto res = new Func1<T2>{};
+    using fptr = void (*)(void*, T2);
+    res->fn = (fptr)fn;
+    res->userData = (void*)d;
     return res;
 }
 

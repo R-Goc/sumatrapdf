@@ -13,6 +13,7 @@
 #include "utils/GdiPlusUtil.h"
 #include "utils/ByteOrderDecoder.h"
 #include "utils/LzmaSimpleArchive.h"
+#include "utils/ThreadUtil.h"
 
 #include "wingui/UIModels.h"
 #include "wingui/Layout.h"
@@ -79,10 +80,10 @@ static void ProgressStep() {
 }
 
 static Checkbox* CreateCheckbox(HWND hwndParent, const char* s, bool isChecked) {
-    CheckboxCreateArgs args;
+    Checkbox::CreateArgs args;
     args.parent = hwndParent;
     args.text = s;
-    args.initialState = isChecked ? CheckState::Checked : CheckState::Unchecked;
+    args.initialState = isChecked ? Checkbox::State::Checked : Checkbox::State::Unchecked;
 
     Checkbox* w = new Checkbox();
     w->Create(args);
@@ -228,7 +229,7 @@ void RemoveAppShortcuts() {
     }
 }
 
-static DWORD WINAPI InstallerThread(void*) {
+static void InstallerThread() {
     gWnd->failed = true;
     bool ok;
 
@@ -288,7 +289,6 @@ Exit:
             PostMessageW(gWnd->hwnd, WM_APP_INSTALLATION_FINISHED, 0, 0);
         }
     }
-    return 0;
 }
 
 static void RestartElevatedForAllUsers() {
@@ -346,7 +346,7 @@ static void StartInstallation(InstallerWnd* wnd) {
     nInstallationSteps++; // for writing registry entries
     nInstallationSteps++; // to show progress at the beginning
 
-    ProgressCreateArgs args;
+    Progress::CreateArgs args;
     args.initialMax = nInstallationSteps;
     args.parent = wnd->hwnd;
     wnd->progressBar = new Progress();
@@ -371,7 +371,8 @@ static void StartInstallation(InstallerWnd* wnd) {
     HwndInvalidate(wnd->hwnd);
 
     gInstallStarted = true;
-    wnd->hThread = CreateThread(nullptr, 0, InstallerThread, nullptr, 0, nullptr);
+    auto fn = MkFuncVoid(InstallerThread);
+    wnd->hThread = StartThread(fn, "InstallerThread");
 }
 
 static void OnButtonOptions(InstallerWnd* wnd);
@@ -388,9 +389,13 @@ static void OnButtonInstall(InstallerWnd* wnd) {
         KillProcessesWithModule(exePath, true);
     }
 
+    logf("OnButtonInstall: before CheckInstallUninstallPossible()\n");
     if (!CheckInstallUninstallPossible()) {
         return;
     }
+    logf("OnButtonInstall: after CheckInstallUninstallPossible()\n");
+    logf("OnButtonInstall: wnd: 0x%p\n", wnd);
+    logf("OnButtonInstall: wnd->editInstallationDir: 0x%p\n", wnd->editInstallationDir);
 
     char* userInstallDir = HwndGetTextTemp(wnd->editInstallationDir->hwnd);
     if (!str::IsEmpty(userInstallDir)) {
@@ -728,7 +733,7 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd) {
             showOptions = true;
         }
         wnd->checkboxForAllUsers = CreateCheckbox(hwnd, s, isChecked);
-        wnd->checkboxForAllUsers->onCheckStateChanged = ForAllUsersStateChanged;
+        wnd->checkboxForAllUsers->onStateChanged = MkFuncVoid(ForAllUsersStateChanged);
 
         checkDy = wnd->checkboxRegisterPreview->GetIdealSize().dy;
         rc = {x, y, x + dx, y + checkDy};
@@ -744,7 +749,7 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd) {
 
     Size btnSize2 = wnd->btnBrowseDir->GetIdealSize();
 
-    EditCreateArgs eargs;
+    Edit::CreateArgs eargs;
     eargs.parent = hwnd;
     eargs.withBorder = true;
     wnd->editInstallationDir = new Edit();
@@ -768,7 +773,7 @@ static void CreateInstallerWindowControls(InstallerWnd* wnd) {
     const char* s2 = _TRA("Install SumatraPDF in &folder:");
     rc = {x, y, x + r.dx, y + staticDy};
 
-    StaticCreateArgs args;
+    Static::CreateArgs args;
     args.parent = hwnd;
     args.text = s2;
     wnd->staticInstDir = new Static();
@@ -1156,7 +1161,7 @@ int RunInstaller() {
     if (gCli->silent) {
         gInstallStarted = true;
         logfa("gCli->silent, before running InstallerThread()\n");
-        InstallerThread(nullptr);
+        InstallerThread();
         ret = gWnd->failed ? 1 : 0;
     } else {
         log("Before CreateInstallerWindow()\n");

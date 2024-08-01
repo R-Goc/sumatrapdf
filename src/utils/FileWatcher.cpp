@@ -78,7 +78,7 @@ struct WatchedFile {
     WatchedFile* next = nullptr;
     WatchedDir* watchedDir = nullptr;
     const char* filePath = nullptr;
-    std::function<void()> onFileChangedCb;
+    Func0 onFileChangedCb;
 
     // if true, the file is on a network drive and we have
     // to check if it changed manually, by periodically checking
@@ -96,7 +96,6 @@ void WatchedFileSetIgnore(WatchedFile* wf, bool ignore) {
 }
 
 static HANDLE gThreadHandle = nullptr;
-static DWORD gThreadId = 0;
 
 static HANDLE gThreadControlHandle = nullptr;
 
@@ -178,7 +177,7 @@ static void NotifyAboutFile(WatchedDir* d, const char* fileName) {
         // because the time granularity is so big that this can cause genuine
         // file notifications to be ignored. (This happens for instance for
         // PDF files produced by pdftex from small.tex document)
-        wf->onFileChangedCb();
+        wf->onFileChangedCb.Call();
     }
 }
 
@@ -274,8 +273,6 @@ static void CALLBACK StartMonitoringDirForChangesAPC(ULONG_PTR arg) {
         logf("StartMonitoringDirForChangesAPC() %s\n", wd->dirPath);
     }
 
-    ReportIf(gThreadId != GetCurrentThreadId());
-
     DWORD dwNotifyFilter = FILE_NOTIFY_CHANGE_LAST_WRITE | FILE_NOTIFY_CHANGE_FILE_NAME;
     ReadDirectoryChangesW(wd->hDir,
                           wd->buf,                           // read results buffer
@@ -310,12 +307,12 @@ static void RunManualChecks() {
         }
         if (FileStateChanged(wf->filePath, &wf->fileState)) {
             // logf("RunManualCheck() %s changed\n", wf->filePath);
-            wf->onFileChangedCb();
+            wf->onFileChangedCb.Call();
         }
     }
 }
 
-static DWORD WINAPI FileWatcherThread(void*) {
+static void FileWatcherThread() {
     HANDLE handles[1];
     // must be alertable to receive ReadDirectoryChangesW() callbacks and APCs
     BOOL alertable = TRUE;
@@ -348,7 +345,6 @@ static DWORD WINAPI FileWatcherThread(void*) {
         }
     }
     DestroyTempAllocator();
-    return 0;
 }
 
 static WatchedDir* FindExistingWatchedDir(const char* dirPath) {
@@ -398,7 +394,7 @@ static WatchedDir* NewWatchedDir(const char* dirPath) {
     return wd;
 }
 
-static WatchedFile* NewWatchedFile(const char* filePath, const std::function<void()>& onFileChangedCb) {
+static WatchedFile* NewWatchedFile(const char* filePath, const Func0& onFileChangedCb) {
     WCHAR* pathW = ToWStrTemp(filePath);
     bool isManualCheck = PathIsNetworkPathW(pathW);
     TempStr dirPath = path::GetDirTemp(filePath);
@@ -449,7 +445,7 @@ We take ownership of observer object.
 Returns a cancellation token that can be used in FileWatcherUnsubscribe(). That
 way we can support multiple callers subscribing to the same file.
 */
-WatchedFile* FileWatcherSubscribe(const char* path, const std::function<void()>& onFileChangedCb) {
+WatchedFile* FileWatcherSubscribe(const char* path, const Func0& onFileChangedCb) {
     // logf("FileWatcherSubscribe() path: %s\n", path);
 
     if (!file::Exists(path)) {
@@ -467,10 +463,8 @@ WatchedFile* FileWatcherSubscribe(const char* path, const std::function<void()>&
         InitializeCriticalSection(&gThreadCritSec);
         gThreadControlHandle = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 
-        gThreadHandle = CreateThread(nullptr, 0, FileWatcherThread, nullptr, 0, &gThreadId);
-        if (gThreadHandle) {
-            SetThreadName("FileWatcherThread", gThreadId);
-        }
+        auto fn = MkFuncVoid(FileWatcherThread);
+        gThreadHandle = StartThread(fn, "FileWatcherThread");
     }
 
     ScopedCritSec cs(&gThreadCritSec);

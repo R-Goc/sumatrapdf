@@ -305,7 +305,7 @@ void CloseAllTabs(MainWindow* win) {
 static void TabsContextMenu(ContextMenuEvent* ev) {
     MainWindow* win = FindMainWindowByHwnd(ev->w->hwnd);
     TabsCtrl* tabsCtrl = (TabsCtrl*)ev->w;
-    TabMouseState tabState = tabsCtrl->TabStateFromMousePosition(ev->mouseWindow);
+    TabsCtrl::MouseState tabState = tabsCtrl->TabStateFromMousePosition(ev->mouseWindow);
     int tabIdx = tabState.tabIdx;
     if (tabIdx < 0) {
         return;
@@ -385,46 +385,51 @@ static void TabsContextMenu(ContextMenuEvent* ev) {
     }
 }
 
+static void MainWindowTabClosed(MainWindow* win, TabsCtrl::ClosedEvent* ev) {
+    int closedTabIdx = ev->tabIdx;
+    WindowTab* tab = win->GetTab(closedTabIdx);
+    CloseTab(tab, false);
+}
+
+static void MainWindowTabSelectionChanging(MainWindow* win, TabsCtrl::SelectionChangingEvent* ev) {
+    // TODO: Should we allow the switch of the tab if we are in process of printing?
+    SaveCurrentWindowTab(win);
+    ev->preventChanging = false;
+}
+
+static void MainWindowTabSelectionChanged(MainWindow* win, TabsCtrl::SelectionChangedEvent* ev) {
+    int currentIdx = win->tabsCtrl->GetSelected();
+    WindowTab* tab = win->Tabs()[currentIdx];
+    LoadModelIntoTab(tab);
+}
+
+static void MainWindowTabMigration(MainWindow* win, TabsCtrl::MigrationEvent* ev) {
+    WindowTab* tab = win->GetTab(ev->tabIdx);
+    MainWindow* releaseWnd = nullptr;
+    POINT p;
+    p.x = ev->releasePoint.x;
+    p.y = ev->releasePoint.y;
+    HWND hwnd = WindowFromPoint(p);
+    if (hwnd != nullptr) {
+        releaseWnd = FindMainWindowByHwnd(hwnd);
+    }
+    if (releaseWnd == win) {
+        // don't re-add to the same window
+        releaseWnd = nullptr;
+    }
+    MigrateTab(tab, releaseWnd);
+}
+
 void CreateTabbar(MainWindow* win) {
     TabsCtrl* tabsCtrl = new TabsCtrl();
 
-    tabsCtrl->onTabClosed = [win](TabClosedEvent* ev) {
-        int closedTabIdx = ev->tabIdx;
-        WindowTab* tab = win->GetTab(closedTabIdx);
-        CloseTab(tab, false);
-    };
+    tabsCtrl->onTabClosed = MkFunc1(MainWindowTabClosed, win);
+    tabsCtrl->onSelectionChanging = MkFunc1(MainWindowTabSelectionChanging, win);
+    tabsCtrl->onSelectionChanged = MkFunc1(MainWindowTabSelectionChanged, win);
+    tabsCtrl->onContextMenu = MkFunc1Void(TabsContextMenu);
+    tabsCtrl->onTabMigration = MkFunc1(MainWindowTabMigration, win);
 
-    tabsCtrl->onSelectionChanging = [win](TabsSelectionChangingEvent* ev) -> bool {
-        // TODO: Should we allow the switch of the tab if we are in process of printing?
-        SaveCurrentWindowTab(win);
-        return false;
-    };
-
-    tabsCtrl->onSelectionChanged = [win](TabsSelectionChangedEvent* ev) {
-        int currentIdx = win->tabsCtrl->GetSelected();
-        WindowTab* tab = win->Tabs()[currentIdx];
-        LoadModelIntoTab(tab);
-    };
-    tabsCtrl->onContextMenu = TabsContextMenu;
-
-    tabsCtrl->onTabMigration = [win](TabMigrationEvent* ev) {
-        WindowTab* tab = win->GetTab(ev->tabIdx);
-        MainWindow* releaseWnd = nullptr;
-        POINT p;
-        p.x = ev->releasePoint.x;
-        p.y = ev->releasePoint.y;
-        HWND hwnd = WindowFromPoint(p);
-        if (hwnd != nullptr) {
-            releaseWnd = FindMainWindowByHwnd(hwnd);
-        }
-        if (releaseWnd == win) {
-            // don't re-add to the same window
-            releaseWnd = nullptr;
-        }
-        MigrateTab(tab, releaseWnd);
-    };
-
-    TabsCreateArgs args;
+    TabsCtrl::CreateArgs args;
     args.parent = win->hwndFrame;
     args.withToolTips = true;
     args.font = GetAppFont();

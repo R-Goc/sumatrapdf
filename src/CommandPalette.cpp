@@ -209,7 +209,6 @@ struct CommandPaletteWnd : Wnd {
 
     bool Create(MainWindow* win, const char* prefix);
     void QueryChanged();
-    void ListDoubleClick();
 
     void ExecuteCurrentSelection();
 };
@@ -760,8 +759,8 @@ void CommandPaletteWnd::ExecuteCurrentSelection() {
     ScheduleDelete();
 }
 
-void CommandPaletteWnd::ListDoubleClick() {
-    ExecuteCurrentSelection();
+static void ListDoubleClick(CommandPaletteWnd* w) {
+    w->ExecuteCurrentSelection();
 }
 
 void OnDestroy(WmDestroyEvent&) {
@@ -781,7 +780,7 @@ static void PositionCommandPalette(HWND hwnd, HWND hwndRelative) {
 }
 
 static Static* CreateStatic(HWND parent, HFONT font, const char* s) {
-    StaticCreateArgs args;
+    Static::CreateArgs args;
     args.parent = parent;
     args.font = font;
     args.text = s;
@@ -789,6 +788,10 @@ static Static* CreateStatic(HWND parent, HFONT font, const char* s) {
     auto wnd = c->Create(args);
     ReportIf(!wnd);
     return c;
+}
+
+static void CommandPaletteQueryChanged(CommandPaletteWnd* self) {
+    self->QueryChanged();
 }
 
 bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
@@ -809,7 +812,7 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
     vbox->alignCross = CrossAxisAlign::Stretch;
 
     {
-        EditCreateArgs args;
+        Edit::CreateArgs args;
         args.parent = hwnd;
         args.isMultiLine = false;
         args.withBorder = true;
@@ -817,7 +820,7 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
         args.font = font;
         auto c = new Edit();
         c->maxDx = 150;
-        c->onTextChanged = std::bind(&CommandPaletteWnd::QueryChanged, this);
+        c->onTextChanged = MkFunc0(CommandPaletteQueryChanged, this);
         HWND ok = c->Create(args);
         ReportIf(!ok);
         editQuery = c;
@@ -851,11 +854,11 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
     }
 
     {
-        ListBoxCreateArgs args;
+        ListBox::CreateArgs args;
         args.parent = hwnd;
         args.font = font;
         auto c = new ListBox();
-        c->onDoubleClick = std::bind(&CommandPaletteWnd::ListDoubleClick, this);
+        c->onDoubleClick = MkFunc0(ListDoubleClick, this);
         c->idealSizeLines = 32;
         c->SetInsetsPt(4, 0);
         auto wnd = c->Create(args);

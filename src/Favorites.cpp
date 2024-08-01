@@ -783,7 +783,7 @@ static void FavTreeItemClicked(TreeClickEvent* ev) {
 }
 #endif
 
-static void FavTreeSelectionChanged(TreeSelectionChangedEvent* ev) {
+static void FavTreeSelectionChanged(TreeView::SelectionChangedEvent* ev) {
     MainWindow* win = FindMainWindowByHwnd(ev->treeView->hwnd);
     ReportIf(!win);
 
@@ -880,7 +880,7 @@ static LRESULT CALLBACK WndProcFavBox(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 }
 
 // in TableOfContents.cpp
-extern LRESULT TocTreeKeyDown2(TreeKeyDownEvent*);
+extern void TocTreeKeyDown2(TreeView::KeyDownEvent*);
 
 void CreateFavorites(MainWindow* win) {
     HMODULE h = GetModuleHandleW(nullptr);
@@ -903,16 +903,17 @@ void CreateFavorites(MainWindow* win) {
     // label is set in UpdateToolbarSidebarText()
 
     auto treeView = new TreeView();
-    TreeViewCreateArgs args;
+    TreeView::CreateArgs args;
     args.parent = win->hwndFavBox;
     args.font = GetAppTreeFont();
     args.fullRowSelect = true;
     args.exStyle = WS_EX_STATICEDGE;
 
-    treeView->onContextMenu = FavTreeContextMenu;
-    treeView->onTreeSelectionChanged = FavTreeSelectionChanged;
-    treeView->onTreeKeyDown = TocTreeKeyDown2;
-    // treeView->onTreeClick = FavTreeItemClicked;
+    auto fn = MkFunc1Void(FavTreeContextMenu);
+    treeView->onContextMenu = fn;
+    treeView->onSelectionChanged = MkFunc1Void(FavTreeSelectionChanged);
+    treeView->onKeyDown = MkFunc1Void(TocTreeKeyDown2);
+    // treeView->onClick = FavTreeItemClicked;
     // treeView->onChar = TocTreeCharHandler;
     // treeView->onMouseWheel = TocTreeMouseWheelHandler;
 

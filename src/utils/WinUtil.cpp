@@ -1994,7 +1994,7 @@ TempWStr HwndGetTextWTemp(HWND hwnd) {
 // return text of window or edit control, nullptr in case of an error
 TempStr HwndGetTextTemp(HWND hwnd) {
     size_t cch = HwndGetTextLen(hwnd);
-    WCHAR* txt = AllocArrayTemp<WCHAR>(cch + 2); // +2 for extra room
+    WCHAR* txt = AllocArrayTemp<WCHAR>(cch + 2); // +2 jic
     if (nullptr == txt) {
         return nullptr;
     }
@@ -2315,8 +2315,8 @@ bool IsValidHandle(HANDLE h) {
 // This is just to satisfy /analyze. CloseHandle(nullptr) works perfectly fine
 // but /analyze complains anyway
 bool SafeCloseHandle(HANDLE* h) {
-    if (!*h) {
-        return true;
+    if (IsValidHandle(*h)) {
+        return false;
     }
     BOOL ok = CloseHandle(*h);
     *h = nullptr;

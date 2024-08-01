@@ -8,8 +8,7 @@ bool HasWebView();
 typedef interface ICoreWebView2 ICoreWebView2;
 typedef interface ICoreWebView2Controller ICoreWebView2Controller;
 
-using WebViewMsgCb = std::function<void(const char*)>;
-// using dispatch_fn_t = std::function<void()>;
+using WebViewMsgCb = Func1<const char*>;
 
 struct CreateWebViewArgs {
     HWND parent = nullptr;
@@ -26,7 +25,7 @@ struct WebviewWnd : Wnd {
     void SetHtml(const char* html);
     void Init(const char* js);
     void Navigate(const char* url);
-    bool Embed(WebViewMsgCb cb);
+    bool Embed(WebViewMsgCb& cb);
 
     virtual void OnBrowserMessage(const char* msg);
 
@@ -42,4 +41,8 @@ struct WebviewWnd : Wnd {
     // DWORD m_main_thread = GetCurrentThreadId();
     ICoreWebView2* webview = nullptr;
     ICoreWebView2Controller* controller = nullptr;
+
+    // TODO: not sure if flag needs to be atomic i.e. is CreateCoreWebView2EnvironmentWithOptions()
+    // called on a different thread?
+    volatile LONG flag = 0;
 };

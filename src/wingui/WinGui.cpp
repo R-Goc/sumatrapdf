@@ -381,7 +381,7 @@ bool Wnd::OnEraseBkgnd(HDC) {
 }
 
 void Wnd::OnContextMenu(Point ptScreen) {
-    if (!onContextMenu) {
+    if (!onContextMenu.IsValid()) {
         return;
     }
 
@@ -396,7 +396,7 @@ void Wnd::OnContextMenu(Point ptScreen) {
     }
     ev.mouseWindow.x = ptW.x;
     ev.mouseWindow.y = ptW.y;
-    onContextMenu(&ev);
+    onContextMenu.Call(&ev);
 }
 
 void Wnd::OnDropFiles(HDROP drop_info) {
@@ -674,10 +674,10 @@ LRESULT Wnd::WndProcDefault(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     WmEvent e{hwnd, msg, wparam, lparam, this->userData, this};
 
     if (msg == WM_CLOSE) {
-        if (onClose) {
-            WmCloseEvent ev;
+        if (onClose.IsValid()) {
+            Wnd::CloseEvent ev;
             ev.e = &e;
-            onClose(ev);
+            onClose.Call(&ev);
             if (ev.e->didHandle) {
                 return 0;
             }
@@ -1186,7 +1186,7 @@ Static::Static() {
     kind = kindStatic;
 }
 
-HWND Static::Create(const StaticCreateArgs& args) {
+HWND Static::Create(const CreateArgs& args) {
     CreateControlArgs cargs;
     cargs.className = WC_STATICW;
     cargs.parent = args.parent;
@@ -1209,7 +1209,7 @@ Size Static::GetIdealSize() {
 
 bool Static::OnCommand(WPARAM wparam, LPARAM lparam) {
     auto code = HIWORD(wparam);
-    if (code == STN_CLICKED && !onClicked.IsEmpty()) {
+    if (code == STN_CLICKED && onClicked.IsValid()) {
         onClicked.Call();
         return true;
     }
@@ -1262,7 +1262,7 @@ Button::Button() {
 bool Button::OnCommand(WPARAM wparam, LPARAM lparam) {
     auto code = HIWORD(wparam);
     if (code == BN_CLICKED) {
-        if (!onClicked.IsEmpty()) {
+        if (onClicked.IsValid()) {
             onClicked.Call();
             return true;
         }
@@ -1278,7 +1278,7 @@ LRESULT Button::OnMessageReflect(UINT msg, WPARAM wparam, LPARAM lparam) {
     return 0;
 }
 
-HWND Button::Create(const ButtonCreateArgs& args) {
+HWND Button::Create(const CreateArgs& args) {
     CreateControlArgs cargs;
     cargs.className = WC_BUTTONW;
     cargs.parent = args.parent;
@@ -1312,7 +1312,7 @@ Size Button::SetTextAndResize(const WCHAR* s) {
 #endif
 
 Button* CreateButton(HWND parent, const char* s, const Func0& onClicked) {
-    ButtonCreateArgs args;
+    Button::CreateArgs args;
     args.parent = parent;
     args.text = s;
 
@@ -1325,7 +1325,7 @@ Button* CreateButton(HWND parent, const char* s, const Func0& onClicked) {
 #define kButtonMargin 8
 
 Button* CreateDefaultButton(HWND parent, const char* s) {
-    ButtonCreateArgs args;
+    Button::CreateArgs args;
     args.parent = parent;
     args.text = s;
 
@@ -1474,7 +1474,7 @@ Tooltip::Tooltip() {
     kind = kindTooltip;
 }
 
-HWND Tooltip::Create(const TooltipCreateArgs& args) {
+HWND Tooltip::Create(const CreateArgs& args) {
     CreateControlArgs cargs;
     cargs.className = TOOLTIPS_CLASS;
     cargs.font = args.font;
@@ -1631,7 +1631,7 @@ void Edit::SetCursorPositionAtEnd() {
     SetCursorPosition(pos);
 }
 
-HWND Edit::Create(const EditCreateArgs& editArgs) {
+HWND Edit::Create(const CreateArgs& editArgs) {
     // https://docs.microsoft.com/en-us/windows/win32/controls/edit-control-styles
     CreateControlArgs args;
     args.className = WC_EDITW;
@@ -1729,8 +1729,8 @@ Size Edit::GetIdealSize() {
 // https://docs.microsoft.com/en-us/windows/win32/controls/en-change
 bool Edit::OnCommand(WPARAM wparam, LPARAM lparam) {
     auto code = HIWORD(wparam);
-    if (code == EN_CHANGE && onTextChanged) {
-        onTextChanged();
+    if (code == EN_CHANGE && onTextChanged.IsValid()) {
+        onTextChanged.Call();
         return true;
     }
     return false;
@@ -1778,7 +1778,7 @@ ListBox::~ListBox() {
     delete this->model;
 }
 
-HWND ListBox::Create(const ListBoxCreateArgs& args) {
+HWND ListBox::Create(const CreateArgs& args) {
     idealSizeLines = args.idealSizeLines;
     if (idealSizeLines < 0) {
         idealSizeLines = 0;
@@ -1871,13 +1871,13 @@ void ListBox::SetModel(ListBoxModel* model) {
 bool ListBox::OnCommand(WPARAM wparam, LPARAM lparam) {
     auto code = HIWORD(wparam);
     // https://docs.microsoft.com/en-us/windows/win32/controls/lbn-selchange
-    if (code == LBN_SELCHANGE && onSelectionChanged) {
-        onSelectionChanged();
+    if (code == LBN_SELCHANGE && onSelectionChanged.IsValid()) {
+        onSelectionChanged.Call();
         return true;
     }
     // https://docs.microsoft.com/en-us/windows/win32/controls/lbn-dblclk
-    if (code == LBN_DBLCLK && onDoubleClick) {
-        onDoubleClick();
+    if (code == LBN_DBLCLK && onDoubleClick.IsValid()) {
+        onDoubleClick.Call();
         return true;
     }
     return false;
@@ -1898,12 +1898,12 @@ LRESULT ListBox::OnMessageReflect(UINT msg, WPARAM wparam, LPARAM lparam) {
 
 static Kind kindCheckbox = "checkbox";
 
-static CheckState GetButtonCheckState(HWND hwnd) {
+static Checkbox::State GetButtonState(HWND hwnd) {
     auto res = Button_GetCheck(hwnd);
-    return (CheckState)res;
+    return (Checkbox::State)res;
 }
 
-static void SetButtonCheckState(HWND hwnd, CheckState newState) {
+static void SetButtonState(HWND hwnd, Checkbox::State newState) {
     ReportIf(!hwnd);
     Button_SetCheck(hwnd, newState);
 }
@@ -1912,7 +1912,7 @@ Checkbox::Checkbox() {
     kind = kindCheckbox;
 }
 
-HWND Checkbox::Create(const CheckboxCreateArgs& args) {
+HWND Checkbox::Create(const CreateArgs& args) {
     CreateControlArgs cargs;
     cargs.parent = args.parent;
     cargs.text = args.text;
@@ -1920,15 +1920,15 @@ HWND Checkbox::Create(const CheckboxCreateArgs& args) {
     cargs.style = WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_AUTOCHECKBOX;
 
     Wnd::CreateControl(cargs);
-    SetButtonCheckState(hwnd, args.initialState);
+    SetButtonState(hwnd, args.initialState);
     SizeToIdealSize(this);
     return hwnd;
 }
 
 bool Checkbox::OnCommand(WPARAM wp, LPARAM) {
     auto code = HIWORD(wp);
-    if (code == BN_CLICKED && onCheckStateChanged) {
-        onCheckStateChanged();
+    if (code == BN_CLICKED && onStateChanged.IsValid()) {
+        onStateChanged.Call();
         return true;
     }
     return false;
@@ -1938,25 +1938,25 @@ Size Checkbox::GetIdealSize() {
     return ButtonGetIdealSize(hwnd);
 }
 
-void Checkbox::SetCheckState(CheckState newState) {
+void Checkbox::SetState(State newState) {
     ReportIf(!hwnd);
-    SetButtonCheckState(hwnd, newState);
+    SetButtonState(hwnd, newState);
 }
 
-CheckState Checkbox::GetCheckState() const {
-    return GetButtonCheckState(hwnd);
+Checkbox::State Checkbox::GetState() const {
+    return GetButtonState(hwnd);
 }
 
 void Checkbox::SetIsChecked(bool isChecked) {
     ReportIf(!hwnd);
-    CheckState newState = isChecked ? CheckState::Checked : CheckState::Unchecked;
-    SetButtonCheckState(hwnd, newState);
+    Checkbox::State newState = isChecked ? Checkbox::State::Checked : Checkbox::State::Unchecked;
+    SetButtonState(hwnd, newState);
 }
 
 bool Checkbox::IsChecked() const {
     ReportIf(!hwnd);
-    auto state = GetCheckState();
-    return state == CheckState::Checked;
+    auto state = GetState();
+    return state == Checkbox::State::Checked;
 }
 
 //- Progress
@@ -1969,7 +1969,7 @@ Progress::Progress() {
     kind = kindProgress;
 }
 
-HWND Progress::Create(const ProgressCreateArgs& args) {
+HWND Progress::Create(const CreateArgs& args) {
     CreateControlArgs cargs;
     cargs.parent = args.parent;
     cargs.style = WS_CHILD | WS_VISIBLE;
@@ -2028,15 +2028,15 @@ static void SetDropDownItems(HWND hwnd, StrVec& items) {
 
 bool DropDown::OnCommand(WPARAM wp, LPARAM) {
     auto code = HIWORD(wp);
-    if ((code == CBN_SELCHANGE) && onSelectionChanged) {
-        onSelectionChanged();
+    if ((code == CBN_SELCHANGE) && onSelectionChanged.IsValid()) {
+        onSelectionChanged.Call();
         // must return false or else the drop-down list will not close
         return false;
     }
     return false;
 }
 
-HWND DropDown::Create(const DropDownCreateArgs& args) {
+HWND DropDown::Create(const CreateArgs& args) {
     CreateControlArgs cargs;
     cargs.parent = args.parent;
     cargs.style = WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST;
@@ -2135,7 +2135,7 @@ Trackbar::Trackbar() {
 }
 
 // https://docs.microsoft.com/en-us/windows/win32/controls/wm-vscroll--trackbar-
-HWND Trackbar::Create(const TrackbarCreateArgs& args) {
+HWND Trackbar::Create(const CreateArgs& args) {
     DWORD dwStyle = WS_CHILD | WS_VISIBLE | WS_TABSTOP;
     dwStyle |= TBS_AUTOTICKS; // tick marks for each increment
     dwStyle |= TBS_TOOLTIPS;  // show current value when dragging in a tooltip
@@ -2172,7 +2172,7 @@ HWND Trackbar::Create(const TrackbarCreateArgs& args) {
 // https://docs.microsoft.com/en-us/windows/win32/controls/wm-hscroll--trackbar-
 // https://docs.microsoft.com/en-us/windows/win32/controls/wm-vscroll--trackbar-
 LRESULT Trackbar::OnMessageReflect(UINT msg, WPARAM wp, LPARAM) {
-    if (!onPosChanging) {
+    if (!onPositionChanging.IsValid()) {
         return 0;
     }
     switch (msg) {
@@ -2188,10 +2188,10 @@ LRESULT Trackbar::OnMessageReflect(UINT msg, WPARAM wp, LPARAM) {
                 default:
                     pos = GetValue();
             }
-            TrackbarPosChangingEvent a{};
+            Trackbar::PositionChangingEvent a{};
             a.trackbar = this;
             a.pos = pos;
-            onPosChanging(&a);
+            onPositionChanging.Call(&a);
             // per https://docs.microsoft.com/en-us/windows/win32/controls/wm-vscroll--trackbar-
             // "if an application processes this message, it should return zero"
             return 0;
@@ -2308,7 +2308,7 @@ Splitter::~Splitter() {
     DeleteObject(bmp);
 }
 
-HWND Splitter::Create(const SplitterCreateArgs& args) {
+HWND Splitter::Create(const CreateArgs& args) {
     ReportIf(!args.parent);
 
     isLive = args.isLive;
@@ -2361,10 +2361,10 @@ LRESULT Splitter::WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
             }
         }
         ReleaseCapture();
-        SplitterMoveEvent arg;
+        Splitter::MoveEvent arg;
         arg.w = this;
         arg.finishedDragging = true;
-        onSplitterMove(&arg);
+        onMove.Call(&arg);
         HwndScheduleRepaint(hwnd);
         return 0;
     }
@@ -2375,10 +2375,10 @@ LRESULT Splitter::WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
             curId = IDC_SIZEWE;
         }
         if (hwnd == GetCapture()) {
-            SplitterMoveEvent arg;
+            Splitter::MoveEvent arg;
             arg.w = this;
             arg.finishedDragging = false;
-            onSplitterMove(&arg);
+            onMove.Call(&arg);
             if (!arg.resizeAllowed) {
                 curId = IDC_NO;
             } else if (!isLive) {
@@ -2485,7 +2485,7 @@ TreeView::TreeView() {
 TreeView::~TreeView() {
 }
 
-HWND TreeView::Create(const TreeViewCreateArgs& argsIn) {
+HWND TreeView::Create(const CreateArgs& argsIn) {
     idealSize = {48, 120}; // arbitrary
     fullRowSelect = argsIn.fullRowSelect;
 
@@ -2851,13 +2851,13 @@ void TreeView::SetTreeModel(TreeModel* tm) {
     RedrawWindow(hwnd, nullptr, nullptr, flags);
 }
 
-void TreeView::SetCheckState(TreeItem item, bool enable) {
+void TreeView::SetState(TreeItem item, bool enable) {
     HTREEITEM hi = GetHandleByTreeItem(item);
     ReportIf(!hi);
     TreeView_SetCheckState(hwnd, hi, enable);
 }
 
-bool TreeView::GetCheckState(TreeItem item) {
+bool TreeView::GetState(TreeItem item) {
     HTREEITEM hi = GetHandleByTreeItem(item);
     ReportIf(!hi);
     auto res = TreeView_GetCheckState(hwnd, hi);
@@ -2926,23 +2926,23 @@ LRESULT TreeView::OnNotifyReflect(WPARAM wp, LPARAM lp) {
     auto code = nmtv->hdr.code;
     // https://docs.microsoft.com/en-us/windows/win32/controls/tvn-getinfotip
     if (code == TVN_GETINFOTIP) {
-        if (!onGetTooltip) {
+        if (!onGetTooltip.IsValid()) {
             return 0;
         }
-        TreeItemGetTooltipEvent ev;
+        TreeView::GetTooltipEvent ev;
         ev.treeView = w;
         ev.info = (NMTVGETINFOTIPW*)(nmtv);
         ev.treeItem = GetTreeItemByHandle(ev.info->hItem);
-        onGetTooltip(&ev);
+        onGetTooltip.Call(&ev);
         return 0;
     }
 
     // https://docs.microsoft.com/en-us/windows/win32/controls/nm-customdraw-tree-view
     if (code == NM_CUSTOMDRAW) {
-        if (!onTreeItemCustomDraw) {
+        if (!onCustomDraw.IsValid()) {
             return CDRF_DODEFAULT;
         }
-        TreeItemCustomDrawEvent ev;
+        TreeView::CustomDrawEvent ev;
         ev.treeView = w;
         ev.nm = (NMTVCUSTOMDRAW*)lp;
         HTREEITEM hItem = (HTREEITEM)ev.nm->nmcd.dwItemSpec;
@@ -2954,7 +2954,8 @@ LRESULT TreeView::OnNotifyReflect(WPARAM wp, LPARAM lp) {
         if (!ev.treeItem) {
             return CDRF_DODEFAULT;
         }
-        res = onTreeItemCustomDraw(&ev);
+        onCustomDraw.Call(&ev);
+        res = ev.result;
         if (res < 0) {
             return CDRF_DODEFAULT;
         }
@@ -2964,10 +2965,10 @@ LRESULT TreeView::OnNotifyReflect(WPARAM wp, LPARAM lp) {
     // https://docs.microsoft.com/en-us/windows/win32/controls/tvn-selchanged
     if (code == TVN_SELCHANGED) {
         // log("tv: TVN_SELCHANGED\n");
-        if (!onTreeSelectionChanged) {
+        if (!onSelectionChanged.IsValid()) {
             return 0;
         }
-        TreeSelectionChangedEvent ev;
+        TreeView::SelectionChangedEvent ev;
         ev.treeView = w;
         ev.nmtv = nmtv;
         auto action = ev.nmtv->action;
@@ -2978,18 +2979,18 @@ LRESULT TreeView::OnNotifyReflect(WPARAM wp, LPARAM lp) {
         }
         ev.prevSelectedItem = w->GetTreeItemByHandle(nmtv->itemOld.hItem);
         ev.selectedItem = w->GetTreeItemByHandle(nmtv->itemNew.hItem);
-        onTreeSelectionChanged(&ev);
+        onSelectionChanged.Call(&ev);
         return 0;
     }
 
     // https://docs.microsoft.com/en-us/windows/win32/controls/nm-click-tree-view
     if (code == NM_CLICK || code == NM_DBLCLK) {
         // log("tv: NM_CLICK\n");
-        if (!onTreeClick) {
+        if (!onClick.IsValid()) {
             return 0;
         }
         NMHDR* nmhdr = (NMHDR*)lp;
-        TreeClickEvent ev{};
+        TreeView::ClickEvent ev{};
         ev.treeView = w;
         ev.isDblClick = (code == NM_DBLCLK);
 
@@ -3011,22 +3012,22 @@ LRESULT TreeView::OnNotifyReflect(WPARAM wp, LPARAM lp) {
         if ((ht.flags & TVHT_ONITEM)) {
             ev.treeItem = GetTreeItemByHandle(ht.hItem);
         }
-        res = onTreeClick(&ev);
-        return 0;
+        onClick.Call(&ev);
+        return ev.result;
     }
 
     // https://docs.microsoft.com/en-us/windows/win32/controls/tvn-keydown
     if (code == TVN_KEYDOWN) {
-        if (!onTreeKeyDown) {
+        if (!onKeyDown.IsValid()) {
             return 0;
         }
         NMTVKEYDOWN* nmkd = (NMTVKEYDOWN*)nmtv;
-        TreeKeyDownEvent ev{};
+        TreeView::KeyDownEvent ev{};
         ev.treeView = w;
         ev.nmkd = nmkd;
         ev.keyCode = nmkd->wVKey;
         ev.flags = nmkd->flags;
-        onTreeKeyDown(&ev);
+        onKeyDown.Call(&ev);
         return 0;
     }
 
@@ -3130,8 +3131,8 @@ void TabsCtrl::LayoutTabs() {
 }
 
 // Finds the index of the tab, which contains the given point.
-TabMouseState TabsCtrl::TabStateFromMousePosition(const Point& p) {
-    TabMouseState res;
+TabsCtrl::MouseState TabsCtrl::TabStateFromMousePosition(const Point& p) {
+    TabsCtrl::MouseState res;
     if (p.x < 0 || p.y < 0) {
         return res;
     }
@@ -3174,7 +3175,7 @@ constexpr float closePenWidth = 1.0f;
 constexpr COLORREF circleColor = RgbToCOLORREF(0xC13535);
 
 void TabsCtrl::Paint(HDC hdc, RECT& rc) {
-    TabMouseState tabState = TabStateFromMousePosition(lastMousePos);
+    TabsCtrl::MouseState tabState = TabStateFromMousePosition(lastMousePos);
     int tabUnderMouse = tabState.tabIdx;
     bool overClose = tabState.overClose && tabState.tabInfo->canClose;
     int tabSelected = GetSelected();
@@ -3323,56 +3324,55 @@ TabsCtrl::~TabsCtrl() {
 }
 
 static void TriggerSelectionChanged(TabsCtrl* tabs) {
-    if (!tabs->onSelectionChanged) {
+    if (!tabs->onSelectionChanged.IsValid()) {
         return;
     }
-    TabsSelectionChangedEvent ev;
+    TabsCtrl::SelectionChangedEvent ev;
     ev.tabs = tabs;
-    tabs->onSelectionChanged(&ev);
+    tabs->onSelectionChanged.Call(&ev);
 }
 
 static bool TriggerSelectionChanging(TabsCtrl* tabs) {
-    if (!tabs->onSelectionChanging) {
+    if (!tabs->onSelectionChanging.IsValid()) {
         // allow changing
         return false;
     }
 
-    TabsSelectionChangingEvent ev;
-    ev.tabs = tabs;
-    bool res = tabs->onSelectionChanging(&ev);
-    return (LRESULT)res;
+    TabsCtrl::SelectionChangingEvent ev;
+    tabs->onSelectionChanging.Call(&ev);
+    return (LRESULT)ev.preventChanging;
 }
 
 static void TriggerTabMigration(TabsCtrl* tabs, int tabIdx, Point p) {
-    if (!tabs->onTabMigration) {
+    if (!tabs->onTabMigration.IsValid()) {
         return;
     }
-    TabMigrationEvent ev;
+    TabsCtrl::MigrationEvent ev;
     ev.tabs = tabs;
     ev.tabIdx = tabIdx;
     ev.releasePoint = p;
-    tabs->onTabMigration(&ev);
+    tabs->onTabMigration.Call(&ev);
 }
 
 static void TriggerTabClosed(TabsCtrl* tabs, int tabIdx) {
-    if ((tabIdx < 0) || !tabs->onTabClosed) {
+    if ((tabIdx < 0) || !tabs->onTabClosed.IsValid()) {
         return;
     }
-    TabClosedEvent ev;
+    TabsCtrl::ClosedEvent ev;
     ev.tabs = tabs;
     ev.tabIdx = tabIdx;
-    tabs->onTabClosed(&ev);
+    tabs->onTabClosed.Call(&ev);
 }
 
 static void TriggerTabDragged(TabsCtrl* tabs, int tab1, int tab2) {
-    if (!tabs->onTabDragged) {
+    if (!tabs->onTabDragged.IsValid()) {
         return;
     }
-    TabDraggedEvent ev;
+    TabsCtrl::DraggedEvent ev;
     ev.tabs = tabs;
     ev.tab1 = tab1;
     ev.tab2 = tab2;
-    tabs->onTabDragged(&ev);
+    tabs->onTabDragged.Call(&ev);
 }
 
 static void UpdateAfterDrag(TabsCtrl* tabsCtrl, int tab1, int tab2) {
@@ -3432,7 +3432,7 @@ LRESULT TabsCtrl::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         mousePos.y = p.y;
     }
 
-    TabMouseState tabState;
+    TabsCtrl::MouseState tabState;
 
     bool overClose = false;
     bool canClose = true;
@@ -3687,7 +3687,7 @@ LRESULT TabsCtrl::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return WndProcDefault(hwnd, msg, wp, lp);
 }
 
-HWND TabsCtrl::Create(TabsCreateArgs& argsIn) {
+HWND TabsCtrl::Create(TabsCtrl::CreateArgs& argsIn) {
     withToolTips = argsIn.withToolTips;
     tabDefaultDx = argsIn.tabDefaultDx;
 
@@ -3737,20 +3737,23 @@ int TabsCtrl::InsertTab(int idx, TabInfo* tab) {
     TCITEMW item{0};
     item.mask = TCIF_TEXT;
     item.pszText = ToWStrTemp(tab->text);
-    int insertedIdx = TabCtrl_InsertItem(hwnd, idx, &item);
+    int res = TabCtrl_InsertItem(hwnd, idx, &item);
+    if (res < 0) {
+        return res;
+    }
     tabs.InsertAt(idx, tab);
 
-    if (insertedIdx == 0) {
+    if (idx == 0) {
         SetSelected(0);
     } else {
         int selectedTab = GetSelected();
-        if (insertedIdx <= selectedTab) {
+        if (idx <= selectedTab) {
             SetSelected(selectedTab + 1);
         }
     }
     tabBeingClosed = -1;
     LayoutTabs();
-    return insertedIdx;
+    return idx;
 }
 
 void TabsCtrl::SetTextAndTooltip(int idx, const char* text, const char* tooltip) {
@@ -3802,7 +3805,11 @@ int TabsCtrl::GetSelected() {
 }
 
 int TabsCtrl::SetSelected(int idx) {
-    ReportIf(idx < 0 || idx >= TabCount());
+    int nTabs = TabCount();
+    if (idx < 0 || idx >= nTabs) {
+        logf("TabsCtrl::SetSelected(): idx: %d, TabsCount(): %d\n", idx, nTabs);
+    }
+    ReportIf(idx < 0 || idx >= nTabs);
     int prevSelectedIdx = TabCtrl_SetCurSel(hwnd, idx);
     return prevSelectedIdx;
 }

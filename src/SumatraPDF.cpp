@@ -92,8 +92,6 @@
 
 #include "utils/Log.h"
 
-using std::placeholders::_1;
-
 constexpr const char* kRestrictionsFileName = "sumatrapdfrestrict.ini";
 
 constexpr const char* kSumatraWindowTitle = "SumatraPDF";
@@ -139,8 +137,8 @@ static StrVec gAllowedFileTypes;
 static bool gDontSavePrefs = false;
 
 static void CloseDocumentInCurrentTab(MainWindow*, bool keepUIEnabled, bool deleteModel);
-static void OnSidebarSplitterMove(SplitterMoveEvent*);
-static void OnFavSplitterMove(SplitterMoveEvent*);
+static void OnSidebarSplitterMove(Splitter::MoveEvent*);
+static void OnFavSplitterMove(Splitter::MoveEvent*);
 
 LoadArgs::LoadArgs(const char* origPath, MainWindow* win) {
     this->fileArgs = ParseFileArgs(origPath);
@@ -670,22 +668,6 @@ static bool ShouldSaveThumbnail(FileState* ds) {
     return true;
 }
 
-// TODO: replace with std::function
-class ThumbnailRenderingTask : public RenderingCallback {
-    std::function<void(RenderedBitmap*)> saveThumbnail;
-
-  public:
-    explicit ThumbnailRenderingTask(const std::function<void(RenderedBitmap*)>& saveThumbnail)
-        : saveThumbnail(saveThumbnail) {
-    }
-    ~ThumbnailRenderingTask() override = default;
-
-    void Callback(RenderedBitmap* bmp) override {
-        saveThumbnail(bmp);
-        delete this;
-    }
-};
-
 struct ControllerCallbackHandler : DocControllerCallback {
     MainWindow* win{nullptr};
 
@@ -702,7 +684,7 @@ struct ControllerCallbackHandler : DocControllerCallback {
     void UpdateScrollbars(Size canvas) override;
     void RequestRendering(int pageNo) override;
     void CleanUp(DisplayModel* dm) override;
-    void RenderThumbnail(DisplayModel* dm, Size size, const onBitmapRenderedCb&) override;
+    void RenderThumbnail(DisplayModel* dm, Size size, const OnBitmapRendered*) override;
     void GotoLink(IPageDestination* dest) override {
         win->linkHandler->GotoLink(dest);
     }
@@ -710,12 +692,12 @@ struct ControllerCallbackHandler : DocControllerCallback {
     void SaveDownload(const char* url, const ByteSlice&) override;
 };
 
-void ControllerCallbackHandler::RenderThumbnail(DisplayModel* dm, Size size, const onBitmapRenderedCb& saveThumbnail) {
+void ControllerCallbackHandler::RenderThumbnail(DisplayModel* dm, Size size, const OnBitmapRendered* saveThumbnail) {
     auto engine = dm->GetEngine();
     RectF pageRect = engine->PageMediabox(1);
     if (pageRect.IsEmpty()) {
         // saveThumbnail must always be called for clean-up code
-        saveThumbnail(nullptr);
+        saveThumbnail->Call(nullptr);
         return;
     }
 
@@ -726,10 +708,7 @@ void ControllerCallbackHandler::RenderThumbnail(DisplayModel* dm, Size size, con
     }
     pageRect = engine->Transform(pageRect, 1, 1.0f, 0, true);
 
-    // TODO: this is leaking?
-    RenderingCallback* callback = new ThumbnailRenderingTask(saveThumbnail);
-    gRenderCache->Render(dm, 1, 0, zoom, pageRect, *callback);
-    // cppcheck-suppress memleak
+    gRenderCache->QueueRenderingRequest(dm, 1, 0, zoom, pageRect, *saveThumbnail);
 }
 
 struct CreateThumbnailData {
@@ -749,6 +728,12 @@ static void CreateThumbnailFinish(CreateThumbnailData* d) {
         SetThumbnail(gFileHistory.FindByPath(path), d->bmp);
     }
     delete d;
+}
+
+static void CreateThumbnailOnBitmapRendered(CreateThumbnailData* d, RenderedBitmap* bmp) {
+    d->bmp = bmp;
+    auto fn = MkFunc0<CreateThumbnailData>(CreateThumbnailFinish, d);
+    uitask::Post(fn, "TaskSetThumbnail");
 }
 
 static void CreateThumbnailForFile(MainWindow* win, FileState* ds) {
@@ -778,11 +763,9 @@ static void CreateThumbnailForFile(MainWindow* win, FileState* ds) {
     char* filePath = str::Dup(win->ctrl->GetFilePath());
     auto d = new CreateThumbnailData{filePath, nullptr};
     logf("CreateThumbnailForFile: filePath: '%s', 0x%p, d: 0x%p\n", filePath, filePath, d);
-    win->ctrl->CreateThumbnail(size, [d](RenderedBitmap* bmp) {
-        d->bmp = bmp;
-        auto fn = MkFunc0<CreateThumbnailData>(CreateThumbnailFinish, d);
-        uitask::Post(fn, "TaskSetThumbnail");
-    });
+    // TODO: this leaks
+    auto fn = NewFunc1(CreateThumbnailOnBitmapRendered, d);
+    win->ctrl->CreateThumbnail(size, fn);
 }
 
 /* Send the request to render a given page to a rendering thread */
@@ -1441,22 +1424,22 @@ void ReloadDocument(MainWindow* win, bool autoRefresh) {
 
 static void CreateSidebar(MainWindow* win) {
     {
-        SplitterCreateArgs args;
+        Splitter::CreateArgs args;
         args.parent = win->hwndFrame;
         args.type = SplitterType::Vert;
         win->sidebarSplitter = new Splitter();
-        win->sidebarSplitter->onSplitterMove = OnSidebarSplitterMove;
+        win->sidebarSplitter->onMove = MkFunc1Void(OnSidebarSplitterMove);
         win->sidebarSplitter->Create(args);
     }
 
     CreateToc(win);
 
     {
-        SplitterCreateArgs args;
+        Splitter::CreateArgs args;
         args.parent = win->hwndFrame;
         args.type = SplitterType::Horiz;
         win->favSplitter = new Splitter();
-        win->favSplitter->onSplitterMove = OnFavSplitterMove;
+        win->favSplitter->onMove = MkFunc1Void(OnFavSplitterMove);
         win->favSplitter->Create(args);
     }
 
@@ -1541,7 +1524,7 @@ static MainWindow* CreateMainWindow() {
     UpdateWindow(win->hwndCanvas);
 
     win->infotip = new Tooltip();
-    TooltipCreateArgs args;
+    Tooltip::CreateArgs args;
     args.parent = win->hwndCanvas;
     win->infotip->Create(args);
 
@@ -1677,7 +1660,7 @@ static void RenameFileInHistory(const char* oldPath, const char* newPath) {
 static void ReloadTab(WindowTab* tab) {
     // tab might have been closed, so first ensure it's still valid
     // https://github.com/sumatrapdfreader/sumatrapdf/issues/1958
-    MainWindow* win = FindMainWindowByWindowTab(tab);
+    MainWindow* win = FindMainWindowByTab(tab);
     if (win == nullptr) {
         return;
     }
@@ -1837,7 +1820,8 @@ MainWindow* LoadDocumentFinish(LoadArgs* args) {
     ReportIf(currTab->watcher);
 
     if (gGlobalPrefs->reloadModifiedDocuments) {
-        currTab->watcher = FileWatcherSubscribe(path, [currTab] { ScheduleReloadTab(currTab); });
+        auto fn = MkFunc0(ScheduleReloadTab, currTab);
+        currTab->watcher = FileWatcherSubscribe(path, fn);
     }
 
     if (gGlobalPrefs->rememberOpenedFiles) {
@@ -2388,6 +2372,17 @@ void ShowSavedAnnotationsFailedNotification(HWND hwndParent, const char* path, c
     ShowWarningNotification(hwndParent, msg.Get(), 0);
 }
 
+struct ShowErrorData {
+    WindowTab* tab;
+    const char* path;
+};
+
+static void ShowSaveAnnotationError(ShowErrorData* d, const char* err) {
+    auto tab = d->tab;
+    auto path = d->path;
+    ShowSavedAnnotationsFailedNotification(tab->win->hwndCanvas, path, err);
+}
+
 bool SaveAnnotationsToExistingFile(WindowTab* tab) {
     if (!tab) {
         return false;
@@ -2395,9 +2390,9 @@ bool SaveAnnotationsToExistingFile(WindowTab* tab) {
     EngineBase* engine = tab->AsFixed()->GetEngine();
     const char* path = engine->FilePath();
     tab->ignoreNextAutoReload = true;
-    bool ok = EngineMupdfSaveUpdated(engine, {}, [&tab, &path](const char* mupdfErr) {
-        ShowSavedAnnotationsFailedNotification(tab->win->hwndCanvas, path, mupdfErr);
-    });
+    ShowErrorData data{tab, path};
+    auto fn = MkFunc1(ShowSaveAnnotationError, &data);
+    bool ok = EngineMupdfSaveUpdated(engine, nullptr, fn);
     if (!ok) {
         tab->ignoreNextAutoReload = false;
         return false;
@@ -2468,9 +2463,9 @@ bool SaveAnnotationsToMaybeNewPdfFile(WindowTab* tab) {
         return SaveAnnotationsToExistingFile(tab);
     }
 
-    ok = EngineMupdfSaveUpdated(engine, dstFilePath, [&tab, &dstFilePath](const char* mupdfErr) {
-        ShowSavedAnnotationsFailedNotification(tab->win->hwndCanvas, dstFilePath, mupdfErr);
-    });
+    ShowErrorData data{tab, dstFilePath};
+    auto fn = MkFunc1(ShowSaveAnnotationError, &data);
+    ok = EngineMupdfSaveUpdated(engine, dstFilePath, fn);
     if (!ok) {
         return false;
     }
@@ -2614,9 +2609,9 @@ static bool MaybeSaveAnnotations(WindowTab* tab) {
         }
         case SaveChoice::SaveExisting: {
             // const char* path = engine->FileName();
-            bool ok = EngineMupdfSaveUpdated(engine, {}, [&tab, &path](const char* mupdfErr) {
-                ShowSavedAnnotationsFailedNotification(tab->win->hwndCanvas, path, mupdfErr);
-            });
+            ShowErrorData data{tab, path};
+            auto fn = MkFunc1(ShowSaveAnnotationError, &data);
+            bool ok = EngineMupdfSaveUpdated(engine, nullptr, fn);
         } break;
         case SaveChoice::Cancel:
             tab->askedToSaveAnnotations = false;
@@ -4550,7 +4545,7 @@ static bool FrameOnSysChar(MainWindow* win, WPARAM key) {
     return false;
 }
 
-static void OnSidebarSplitterMove(SplitterMoveEvent* ev) {
+static void OnSidebarSplitterMove(Splitter::MoveEvent* ev) {
     Splitter* splitter = ev->w;
     HWND hwnd = splitter->hwnd;
     MainWindow* win = FindMainWindowByHwnd(hwnd);
@@ -4573,7 +4568,7 @@ static void OnSidebarSplitterMove(SplitterMoveEvent* ev) {
     RelayoutFrame(win, false, sidebarDx);
 }
 
-static void OnFavSplitterMove(SplitterMoveEvent* ev) {
+static void OnFavSplitterMove(Splitter::MoveEvent* ev) {
     Splitter* splitter = ev->w;
     HWND hwnd = splitter->hwnd;
     MainWindow* win = FindMainWindowByHwnd(hwnd);
@@ -5132,7 +5127,8 @@ static void SetAnnotCreateArgs(AnnotCreateArgs& args, CustomCommand* cmd) {
     } else if (typ == AnnotationType::FreeText) {
         col = GetParsedColor(a.freeTextColor, a.freeTextColorParsed);
     } else {
-        ReportIf(true);
+        logf("SetAnnotCreateArgs: unexpected type %d for default prefs color\n", (int)typ);
+        // ReportIf(true);
     }
     if (col && col->parsedOk) {
         args.col = *col;
