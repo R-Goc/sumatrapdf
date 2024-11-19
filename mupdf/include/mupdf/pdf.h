@@ -47,6 +47,7 @@ extern "C" {
 #include "mupdf/pdf/javascript.h"
 
 #include "mupdf/pdf/clean.h"
+#include "mupdf/pdf/recolor.h"
 #include "mupdf/pdf/image-rewriter.h"
 #include "mupdf/pdf/zugferd.h"
 

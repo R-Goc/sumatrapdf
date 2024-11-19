@@ -414,7 +414,7 @@
       <SubSystem>Windows</SubSystem>
       <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -449,7 +449,7 @@
       <SubSystem>Windows</SubSystem>
       <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -484,7 +484,7 @@
       <SubSystem>Windows</SubSystem>
       <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\arm64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -520,7 +520,7 @@
       <SubSystem>Windows</SubSystem>
       <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -555,7 +555,7 @@
       <SubSystem>Windows</SubSystem>
       <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -590,7 +590,7 @@
       <SubSystem>Windows</SubSystem>
       <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -625,7 +625,7 @@
       <SubSystem>Windows</SubSystem>
       <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\arm64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -661,7 +661,7 @@
       <SubSystem>Windows</SubSystem>
       <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -700,7 +700,7 @@
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -739,7 +739,7 @@
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -778,7 +778,7 @@
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\arm64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -818,7 +818,7 @@
       <GenerateDebugInformation>DebugFull</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -859,7 +859,7 @@
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -900,7 +900,7 @@
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -941,7 +941,7 @@
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\arm64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -982,7 +982,7 @@
       <GenerateDebugInformation>DebugFastLink</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;comctl32.lib;delayimp.lib;gdiplus.lib;msimg32.lib;shlwapi.lib;urlmon.lib;version.lib;wininet.lib;d2d1.lib;uiautomationcore.lib;uxtheme.lib;wintrust.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>..\packages\Microsoft.Web.WebView2.1.0.992.28\build\native\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EntryPointSymbol>WinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
@@ -1037,7 +1037,6 @@
     <ClInclude Include="..\src\RegistryPreview.h" />
     <ClInclude Include="..\src\RegistrySearchFilter.h" />
     <ClInclude Include="..\src\RenderCache.h" />
-    <ClInclude Include="..\src\SaveAsPdf.h" />
     <ClInclude Include="..\src\Scratch.h" />
     <ClInclude Include="..\src\SearchAndDDE.h" />
     <ClInclude Include="..\src\Selection.h" />
@@ -1057,7 +1056,6 @@
     <ClInclude Include="..\src\Translations.h" />
     <ClInclude Include="..\src\UpdateCheck.h" />
     <ClInclude Include="..\src\Version.h" />
-    <ClInclude Include="..\src\Widget.h" />
     <ClInclude Include="..\src\WindowTab.h" />
     <ClInclude Include="..\src\mui\Mui.h" />
     <ClInclude Include="..\src\mui\TextRender.h" />
@@ -1107,7 +1105,6 @@
     <ClCompile Include="..\src\EngineDump.cpp" />
     <ClCompile Include="..\src\EngineEbook.cpp" />
     <ClCompile Include="..\src\EngineImages.cpp" />
-    <ClCompile Include="..\src\EngineMulti.cpp" />
     <ClCompile Include="..\src\EngineMupdf.cpp" />
     <ClCompile Include="..\src\EnginePs.cpp" />
     <ClCompile Include="..\src\ExternalViewers.cpp" />
@@ -1134,7 +1131,6 @@
     <ClCompile Include="..\src\RegistryPreview.cpp" />
     <ClCompile Include="..\src\RegistrySearchFilter.cpp" />
     <ClCompile Include="..\src\RenderCache.cpp" />
-    <ClCompile Include="..\src\SaveAsPdf.cpp" />
     <ClCompile Include="..\src\Scratch.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
@@ -1176,7 +1172,6 @@
     <ClCompile Include="..\src\Translations.cpp" />
     <ClCompile Include="..\src\Uninstaller.cpp" />
     <ClCompile Include="..\src\UpdateCheck.cpp" />
-    <ClCompile Include="..\src\Widget.cpp" />
     <ClCompile Include="..\src\WindowTab.cpp" />
     <ClCompile Include="..\src\mui\Mui.cpp" />
     <ClCompile Include="..\src\mui\TextRender.cpp" />
@@ -1426,7 +1421,10 @@
     <ClCompile Include="..\src\wingui\WinGui.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\.github\workflows\build.yml" />
+    <None Include="..\.github\workflows\codeql.yml" />
     <None Include="..\.gitignore" />
+    <None Include="..\daily.yml" />
     <None Include="..\do\build.go" />
     <None Include="..\do\check_accesskyes.go" />
     <None Include="..\do\clang_format.go" />
@@ -1451,7 +1449,6 @@
     <None Include="..\do\vs.go" />
     <None Include="..\do\wc.go" />
     <None Include="..\docs\manual.tmpl.html" />
-    <None Include="..\docs\manual.website.tmpl.html" />
     <None Include="..\docs\md\Accessibility-and-Text-to-Speech.md" />
     <None Include="..\docs\md\Add-Favorite.md" />
     <None Include="..\docs\md\Advanced-options-settings.md" />
@@ -1465,6 +1462,8 @@
     <None Include="..\docs\md\Corrupted-installation.md" />
     <None Include="..\docs\md\Customize-external-viewers.md" />
     <None Include="..\docs\md\Customize-search-translation-services.md" />
+    <None Include="..\docs\md\Customize-theme-colors.md" />
+    <None Include="..\docs\md\Customize-toolbar.md" />
     <None Include="..\docs\md\Customizing-eBook-UI.md" />
     <None Include="..\docs\md\Customizing-keyboard-shortcuts.md" />
     <None Include="..\docs\md\DDE-Commands.md" />
@@ -1494,6 +1493,8 @@
     <None Include="..\docs\notes.txt" />
     <None Include="..\docs\releasenotes.txt" />
     <None Include="..\docs\wishlist.txt" />
+    <None Include="..\docs\www\notion.css" />
+    <None Include="..\docs\www\sumatra.css" />
     <None Include="..\premake5.files.lua" />
     <None Include="..\premake5.lua" />
     <None Include="..\premake5.obsolete.lua" />

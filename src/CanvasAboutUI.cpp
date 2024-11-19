@@ -32,14 +32,14 @@ static void OnPaintAbout(MainWindow* win) {
     auto t = TimeGet();
     PAINTSTRUCT ps;
     HDC hdc = BeginPaint(win->hwndCanvas, &ps);
-
-    auto txtCol = ThemeWindowTextColor();
-    auto bgCol = ThemeMainWindowBackgroundColor();
-    if (HasPermission(Perm::SavePreferences | Perm::DiskAccess) && gGlobalPrefs->rememberOpenedFiles &&
-        gGlobalPrefs->showStartPage) {
-        DrawHomePage(win, win->buffer->GetDC(), gFileHistory, txtCol, bgCol);
+    HDC bufDC = win->buffer->GetDC();
+    GlobalPrefs* prefs = gGlobalPrefs;
+    bool hasPerms = HasPermission(Perm::SavePreferences | Perm::DiskAccess);
+    bool drawHome = hasPerms && prefs->rememberOpenedFiles && prefs->showStartPage;
+    if (drawHome) {
+        DrawHomePage(win, bufDC);
     } else {
-        DrawAboutPage(win, win->buffer->GetDC());
+        DrawAboutPage(win, bufDC);
     }
     win->buffer->Flush(hdc);
 
@@ -97,12 +97,12 @@ static void OnMouseLeftButtonUpAbout(MainWindow* win, int x, int y, WPARAM) {
         args.activateExisting = !IsCtrlPressed();
         StartLoadDocument(&args);
     }
-    // SetFocus(win->hwndFrame);
+    // HwndSetFocus(win->hwndFrame);
 }
 
 static void OnMouseRightButtonDownAbout(MainWindow* win, int x, int y, WPARAM) {
     // lf("Right button clicked on %d %d", x, y);
-    SetFocus(win->hwndFrame);
+    HwndSetFocus(win->hwndFrame);
     win->dragStart = Point(x, y);
 }
 
@@ -119,7 +119,7 @@ static LRESULT OnSetCursorAbout(MainWindow* win, HWND hwnd) {
     if (!pt.IsEmpty()) {
         StaticLinkInfo* linkInfo;
         if (GetStaticLinkTemp(win->staticLinks, pt.x, pt.y, &linkInfo)) {
-            win->ShowToolTip(linkInfo->infotip, linkInfo->rect);
+            win->ShowToolTip(linkInfo->tooltip, linkInfo->rect);
             SetCursorCached(IDC_HAND);
         } else {
             win->DeleteToolTip();

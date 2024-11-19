@@ -56,7 +56,7 @@ FavTreeItem::~FavTreeItem() {
     DeleteVecMembers(children);
 }
 
-struct FavTreeModel : public TreeModel {
+struct FavTreeModel : TreeModel {
     ~FavTreeModel() override;
 
     TreeItem Root() override;
@@ -824,7 +824,7 @@ static void FavTreeContextMenu(ContextMenuEvent* ev) {
     if (!ti) {
         return;
     }
-    HMENU popup = BuildMenuFromMenuDef(menuDefContextFav, CreatePopupMenu(), nullptr);
+    HMENU popup = BuildMenuFromDef(menuDefContextFav, CreatePopupMenu(), nullptr);
     MarkMenuOwnerDraw(popup);
     uint flags = TPM_RETURNCMD | TPM_RIGHTBUTTON;
     int cmd = TrackPopupMenu(popup, flags, pt.x, pt.y, 0, win->hwndFrame, nullptr);

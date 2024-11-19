@@ -54,6 +54,11 @@
 
 #include "utils/Log.h"
 
+// if set instead of trying to render pages we don't have, we simply do nothing
+// this reduces the flickering when going quickly through pages but creates
+// impression of lag
+bool gNoFlickerRender = true;
+
 Kind kNotifAnnotation = "notifAnnotation";
 
 // Timer for mouse wheel smooth scrolling
@@ -460,7 +465,7 @@ static void OnMouseLeftButtonDown(MainWindow* win, int x, int y, WPARAM key) {
     }
     ReportIf(!win->AsFixed());
 
-    SetFocus(win->hwndFrame);
+    HwndSetFocus(win->hwndFrame);
 
     DisplayModel* dm = win->AsFixed();
     Point pt{x, y};
@@ -509,11 +514,11 @@ static void OnMouseLeftButtonUp(MainWindow* win, int x, int y, WPARAM key) {
     }
 
     if (MouseAction::Scrolling == ma) {
+        win->mouseAction = MouseAction::None;
         // TODO: I'm seeing this in crash reports. Can we get button up without button down?
         // maybe when down happens on a different hwnd? How can I add more logging.
-        logfa("OnMouseLeftButtonUp: unexpected MouseAction::Scrolling (%d)\n", ma);
-        win->mouseAction = MouseAction::None;
-        ReportIf(true);
+        // logfa("OnMouseLeftButtonUp: unexpected MouseAction::Scrolling (%d)\n", ma);
+        // ReportIf(true);
         return;
     }
 
@@ -672,6 +677,7 @@ static void OnMouseMiddleButtonDown(MainWindow* win, int x, int y, WPARAM) {
         case MouseAction::None:
             win->mouseAction = MouseAction::Scrolling;
 
+            win->dragStartPending = true;
             // record current mouse position, the farther the mouse is moved
             // from this position, the faster we scroll the document
             win->dragStart = Point(x, y);
@@ -684,6 +690,17 @@ static void OnMouseMiddleButtonDown(MainWindow* win, int x, int y, WPARAM) {
     }
 }
 
+static void OnMouseMiddleButtonUp(MainWindow* win, int x, int y, WPARAM) {
+    switch (win->mouseAction) {
+        case MouseAction::Scrolling:
+            if (!win->dragStartPending) {
+                win->mouseAction = MouseAction::None;
+                SetCursorCached(IDC_ARROW);
+                break;
+            }
+    }
+}
+
 static void OnMouseRightButtonDown(MainWindow* win, int x, int y) {
     // lf("Right button clicked on %d %d", x, y);
     if (MouseAction::Scrolling == win->mouseAction) {
@@ -693,7 +710,7 @@ static void OnMouseRightButtonDown(MainWindow* win, int x, int y) {
     }
     ReportIf(!win->AsFixed());
 
-    SetFocus(win->hwndFrame);
+    HwndSetFocus(win->hwndFrame);
 
     win->dragStartPending = true;
     win->dragStart = Point(x, y);
@@ -781,8 +798,9 @@ static void PaintPageFrameAndShadow(HDC hdc, Rect& bounds, Rect& pageRect, bool 
 #else
 static void PaintPageFrameAndShadow(HDC hdc, Rect& bounds, Rect&, bool) {
     AutoDeletePen pen(CreatePen(PS_NULL, 0, 0));
-    auto col = ThemeMainWindowBackgroundColor();
-    AutoDeleteBrush brush(CreateSolidBrush(col));
+    COLORREF bgCol;
+    ThemeDocumentColors(bgCol);
+    AutoDeleteBrush brush(CreateSolidBrush(bgCol));
     ScopedSelectPen restorePen(hdc, pen);
     ScopedSelectObject restoreBrush(hdc, brush);
     Rectangle(hdc, bounds.x, bounds.y, bounds.x + bounds.dx + 1, bounds.y + bounds.dy + 1);
@@ -882,18 +900,26 @@ NO_INLINE static void PaintCurrentEditAnnotationMark(WindowTab* tab, HDC hdc, Di
     gs.DrawRectangle(&pen, rect.x, rect.y, rect.dx, rect.dy);
 }
 
-static void DrawDocument(MainWindow* win, HDC hdc, RECT* rcArea) {
+static bool DrawDocument(MainWindow* win, HDC hdc, RECT* rcArea) {
     ReportIf(!win->AsFixed());
     if (!win->AsFixed()) {
-        return;
+        return false;
     }
     DisplayModel* dm = win->AsFixed();
+    // logf("DrawDocument RenderCache:\n");
 
     bool isImage = dm->GetEngine()->IsImageCollection();
     // draw comic books and single images on a black background
     // (without frame and shadow)
     bool paintOnBlackWithoutShadow = win->presentation || isImage;
+    COLORREF colDocBg;
+    COLORREF colDocTxt = ThemeDocumentColors(colDocBg);
+    if (isImage) {
+        colDocBg = 0x0;
+        colDocTxt = 0xffffff;
+    }
 
+    bool shouldPaint = false;
     auto gcols = gGlobalPrefs->fixedPageUI.gradientColors;
     auto nGCols = gcols->size();
     if (paintOnBlackWithoutShadow) {
@@ -964,7 +990,7 @@ static void DrawDocument(MainWindow* win, HDC hdc, RECT* rcArea) {
     bool rendering = false;
     Rect screen(Point(), dm->GetViewPort().Size());
 
-    bool isRtl = IsUIRightToLeft();
+    bool isRtl = IsUIRtl();
     for (int pageNo = 1; pageNo <= dm->PageCount(); ++pageNo) {
         PageInfo* pageInfo = dm->GetPageInfo(pageNo);
         if (!pageInfo || 0.0f == pageInfo->visibleRatio) {
@@ -985,21 +1011,31 @@ static void DrawDocument(MainWindow* win, HDC hdc, RECT* rcArea) {
 
         bool renderOutOfDateCue = false;
         int renderDelay = gRenderCache->Paint(hdc, bounds, dm, pageNo, pageInfo, &renderOutOfDateCue);
-
+        if (renderDelay == 0) {
+            shouldPaint = true;
+        }
         if (renderDelay != 0) {
             HFONT fontRightTxt = CreateSimpleFont(hdc, "MS Shell Dlg", 14);
             HGDIOBJ hPrevFont = SelectObject(hdc, fontRightTxt);
-            auto col = ThemeWindowTextColor();
-            SetTextColor(hdc, col);
             if (renderDelay != RENDER_DELAY_FAILED) {
                 if (renderDelay < REPAINT_MESSAGE_DELAY_IN_MS) {
                     ScheduleRepaint(win, REPAINT_MESSAGE_DELAY_IN_MS / 4);
                 } else {
+                    SetTextColor(hdc, colDocTxt);
                     DrawCenteredText(hdc, bounds, _TRA("Please wait - rendering..."), isRtl);
                 }
                 rendering = true;
             } else {
+#if 0
+                AutoDeletePen pen(CreatePen(PS_SOLID, 2, RGB(0xff, 0, 0)));
+                ScopedSelectPen restorePen(hdc, pen);
+                auto x = bounds.x;
+                auto y = bounds.y;
+                Rectangle(hdc, x, y, x + bounds.dx, y + bounds.dy);
+#endif
+                auto prevCol = SetTextColor(hdc, colDocTxt);
                 DrawCenteredText(hdc, bounds, _TRA("Couldn't render the page"), isRtl);
+                SetTextColor(hdc, prevCol);
             }
             SelectObject(hdc, hPrevFont);
             continue;
@@ -1039,6 +1075,7 @@ static void DrawDocument(MainWindow* win, HDC hdc, RECT* rcArea) {
     if (!rendering) {
         DebugShowLinks(dm, hdc);
     }
+    return shouldPaint;
 }
 
 static void OnPaintDocument(MainWindow* win) {
@@ -1054,8 +1091,10 @@ static void OnPaintDocument(MainWindow* win) {
             FillRect(hdc, &ps.rcPaint, GetStockBrush(WHITE_BRUSH));
             break;
         default:
-            DrawDocument(win, win->buffer->GetDC(), &ps.rcPaint);
-            win->buffer->Flush(hdc);
+            bool shouldFlush = DrawDocument(win, win->buffer->GetDC(), &ps.rcPaint);
+            if (!gNoFlickerRender || shouldFlush) {
+                win->buffer->Flush(hdc);
+            }
     }
 
     EndPaint(win->hwndCanvas, &ps);
@@ -1605,6 +1644,10 @@ static LRESULT WndProcCanvasFixedPageUI(MainWindow* win, HWND hwnd, UINT msg, WP
             OnMouseMiddleButtonDown(win, x, y, wp);
             return 0;
 
+        case WM_MBUTTONUP:
+            OnMouseMiddleButtonUp(win, x, y, wp);
+            return 0;
+
         case WM_RBUTTONDOWN:
             OnMouseRightButtonDown(win, x, y);
             return 0;
@@ -1710,7 +1753,7 @@ static void OnPaintError(MainWindow* win) {
     auto tab = win->CurrentTab();
     const char* filePath = tab->filePath;
     TempStr msg = str::FormatTemp(_TRA("Error loading %s"), filePath);
-    DrawCenteredText(hdc, ClientRect(win->hwndCanvas), msg, IsUIRightToLeft());
+    DrawCenteredText(hdc, ClientRect(win->hwndCanvas), msg, IsUIRtl());
     SelectObject(hdc, hPrevFont);
 
     EndPaint(win->hwndCanvas, &ps);
@@ -1754,6 +1797,7 @@ static void RepaintTask(RepaintTaskData* d) {
 }
 
 void ScheduleRepaint(MainWindow* win, int delayInMs) {
+    // logf("ScheduleRepaint RenderCache:\n");
     auto data = new RepaintTaskData;
     data->win = win;
     data->delayInMs = delayInMs;

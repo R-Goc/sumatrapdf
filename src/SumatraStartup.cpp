@@ -77,7 +77,7 @@ static NO_INLINE bool MaybeMakePluginWindow(MainWindow* win, HWND hwndParent) {
     if (!hwndParent) {
         return true;
     }
-    logfa("MakePluginWindow: win: 0x%p, hwndParent: 0x%x (isWindow: %d), gPluginURL: %s\n", win, hwndParent,
+    logfa("MakePluginWindow: win: 0x%p, hwndParent: 0x%p (isWindow: %d), gPluginURL: %s\n", win, hwndParent,
           (int)IsWindow(hwndParent), gPluginURL ? gPluginURL : "<nulL>");
     ReportIf(!gPluginMode);
 
@@ -100,7 +100,7 @@ static NO_INLINE bool MaybeMakePluginWindow(MainWindow* win, HWND hwndParent) {
     UpdateWindow(hwndFrame);
 
     // from here on, we depend on the plugin's host to resize us
-    SetFocus(hwndFrame);
+    HwndSetFocus(hwndFrame);
     return true;
 }
 
@@ -220,7 +220,7 @@ static void MaybeStartSearch(MainWindow* win, const char* searchTerm) {
     HwndSetText(win->hwndFindEdit, searchTerm);
     bool wasModified = true;
     bool showProgress = true;
-    FindTextOnThread(win, TextSearchDirection::Forward, searchTerm, wasModified, showProgress);
+    FindTextOnThread(win, TextSearch::Direction::Forward, searchTerm, wasModified, showProgress);
 }
 
 static MainWindow* LoadOnStartup(const char* filePath, const Flags& flags, bool isFirstWin) {
@@ -403,7 +403,7 @@ static void SetupCrashHandler() {
 static HWND FindPrevInstWindow(HANDLE* hMutex) {
     // create a unique identifier for this executable
     // (allows independent side-by-side installations)
-    TempStr exePath = GetExePathTemp();
+    TempStr exePath = GetSelfExePathTemp();
     str::ToLowerInPlace(exePath);
     u32 hash = MurmurHash2(exePath, str::Len(exePath));
     TempStr mapId = str::FormatTemp("SumatraPDF-%08x", hash);
@@ -603,7 +603,7 @@ static void UpdateGlobalPrefs(const Flags& i) {
 // we're in installer mode if the name of the executable
 // has "install" string in it e.g. SumatraPDF-installer.exe
 static bool ExeHasNameOfInstaller() {
-    TempStr exePath = GetExePathTemp();
+    TempStr exePath = GetSelfExePathTemp();
     TempStr exeName = path::GetBaseNameTemp(exePath);
     if (str::FindI(exeName, "uninstall")) {
         return false;
@@ -634,7 +634,7 @@ static bool IsOurExeInstalled() {
     if (!installedDir.Get()) {
         return false;
     }
-    TempStr exeDir = GetExeDirTemp();
+    TempStr exeDir = GetSelfExeDirTemp();
     return str::EqI(installedDir.Get(), exeDir);
 }
 
@@ -646,7 +646,7 @@ static bool IsInstallerButNotInstalled() {
 }
 
 static void CheckIsStoreBuild() {
-    TempStr exePath = GetExePathTemp();
+    TempStr exePath = GetSelfExePathTemp();
     TempStr exeName = path::GetBaseNameTemp(exePath);
     if (str::FindI(exeName, "store")) {
         gIsStoreBuild = true;
@@ -691,8 +691,7 @@ static bool ForceRunningAsInstaller() {
         return false;
     }
 
-    TempStr exePath = GetExePathTemp();
-    TempStr dir = path::GetDirTemp(exePath);
+    TempStr dir = GetSelfExeDirTemp();
     TempStr path = path::JoinTemp(dir, "libmupdf.dll");
     auto realSize = file::GetSize(path);
     if (realSize < 0) {
@@ -839,10 +838,8 @@ static void ShowNoAdminErrorMessage() {
     TaskDialogIndirect(&dialogConfig, nullptr, nullptr, nullptr);
 }
 
-static void MaybeDeleteStaleDirectory(char* dir, VisitDirData* d) {
-    auto fd = d->fd;
-    ReportIf(!IsDirectory(fd->dwFileAttributes));
-    TempStr name = ToUtf8Temp(fd->cFileName);
+static void MaybeDeleteStaleDirectory(char* dir, DirIterEntry* d) {
+    const char* name = d->name;
     bool maybeDelete = str::StartsWith(name, "manual-") || str::StartsWith(name, "crashinfo-");
     if (!maybeDelete) {
         logf("MaybeDeleteStaleDirectory: skipping '%s' because not manual-* or crsahinfo-*\n", name);
@@ -861,8 +858,12 @@ static void MaybeDeleteStaleDirectory(char* dir, VisitDirData* d) {
 // delete symbols and manual from possibly previous versions
 static void DeleteStaleFilesAsync() {
     TempStr dir = GetNotImportantDataDirTemp();
-    auto fn = MkFunc1(MaybeDeleteStaleDirectory, dir);
-    VisitDir(dir, kVisitDirIncludeDirs, fn);
+    DirIter di{dir};
+    di.includeFiles = false;
+    di.includeDirs = true;
+    for (DirIterEntry* de : di) {
+        MaybeDeleteStaleDirectory(dir, de);
+    }
 }
 
 void StartDeleteStaleFiles() {
@@ -874,7 +875,7 @@ void StartDeleteStaleFiles() {
     TempStr dir = GetNotImportantDataDirTemp();
     TempStr ver = GetVerDirNameTemp("");
     logf("DeleteStaleFiles: dir: '%s', gIsPreRelaseBuild: %d, ver: %s\n", dir, (int)gIsPreReleaseBuild, ver);
-    auto fn = MkFuncVoid(DeleteStaleFilesAsync);
+    auto fn = MkFunc0Void(DeleteStaleFilesAsync);
     RunAsync(fn, "DeleteStaleFilesThread");
 }
 
@@ -980,21 +981,21 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
 
     CheckIsStoreBuild();
 
-    if (false) {
-        const char* dir = "C:\\Users\\kjk\\Downloads\\test";
-        auto di = DirIter{dir};
-        for (VisitDirData* d : di) {
-            logf("d->filePath: '%s'\n", d->filePath);
-        }
-    }
-
     // do this before running installer etc. so that we have disk / net permissions
     // (default policy is to disallow everything)
     InitializePolicies(flags.restrictedUse);
 
 #if defined(DEBUG)
     if (false) {
-        TempStr exePath = GetExePathTemp();
+        const char* dir = "C:\\Users\\kjk\\Downloads";
+        auto di = DirIter{dir};
+        di.recurse = true;
+        for (DirIterEntry* d : di) {
+            logf("d->filePath: '%s'\n", d->filePath);
+        }
+    }
+    if (false) {
+        TempStr exePath = GetSelfExePathTemp();
         RunNonElevated(exePath);
         return 0;
     }
@@ -1013,8 +1014,8 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
 
     {
         char* s = ToUtf8Temp(GetCommandLineW());
-        logf("Starting SumatraPDF %s, GetCommandLineW(): '%s', flags.install: %d, flags.uninstall: %d\n",
-             UPDATE_CHECK_VERA, s, (int)flags.install, (int)flags.uninstall);
+        logf("Starting: '%s'\n  ver %s, flags.install: %d, flags.uninstall: %d\n", s, UPDATE_CHECK_VERA,
+             (int)flags.install, (int)flags.uninstall);
     }
 #if defined(DEBUG)
     if (gIsDebugBuild || gIsPreReleaseBuild) {
@@ -1052,7 +1053,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         return exitCode;
     }
 
-    logf("  isInstaller: %d\n", (int)isInstaller);
     if (isInstaller) {
         if (!ExeHasInstallerResources()) {
             ShowNotValidInstallerError();
@@ -1064,7 +1064,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE, LPSTR, int) {
         ::ExitProcess(exitCode);
     }
 
-    logf("  isUninstaller: %d, flags.uninstaller: %d\n", (int)isUninstaller, (int)flags.uninstall);
     if (isUninstaller) {
         exitCode = RunUninstaller();
         ::ExitProcess(exitCode);

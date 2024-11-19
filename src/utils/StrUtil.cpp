@@ -642,6 +642,22 @@ const char* Find(const char* str, const char* find) {
     return strstr(str, find);
 }
 
+int BufFind(const char* buf, int bufSize, const char* toFind) {
+    int toFindLen = str::Leni(toFind);
+    char c = *toFind;
+    const char* end = buf + (bufSize - toFindLen);
+    const char* s = buf;
+    while (s < end) {
+        if (*s == c) {
+            if (memeq((const void*)s, (const void*)toFind, (size_t)toFindLen)) {
+                return (int)(s - buf);
+            }
+        }
+        s++;
+    }
+    return -1;
+}
+
 // format string to a buffer provided by the caller
 // the hope here is to avoid allocating memory (assuming vsnprintf
 // doesn't allocate)
@@ -927,9 +943,9 @@ static const char* ParseLimitedNumber(const char* str, const char* format, const
      %d - parses a signed int
      %x - parses an unsigned hex-int
      %f - parses a float
-     %c - parses a single WCHAR
-     %s - parses a string (pass in a WCHAR**, free after use - also on failure!)
-     %S - parses a string into a AutoFreeW
+     %c - parses a single char
+     %s - parses a string (pass in a char**, free after use - also on failure!)
+     %S - parses a string into a AutoFree
      %? - makes the next single character optional (e.g. "x%?,y" parses both "xy" and "x,y")
      %$ - causes the parsing to fail if it's encountered when not at the end of the string
      %  - skips a single whitespace character
@@ -1916,17 +1932,6 @@ bool WStr::IsEmpty() const {
     return len == 0;
 }
 
-void WStr::AppendFmt(const WCHAR* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    WCHAR* res = FmtV(fmt, args);
-    if (res) {
-        Append(res);
-        str::Free(res);
-    }
-    va_end(args);
-}
-
 // returns true if was replaced
 bool Replace(WStr& s, const WCHAR* toReplace, const WCHAR* replaceWith) {
     // fast path: nothing to replace
@@ -1973,6 +1978,13 @@ bool IsDigit(WCHAR c) {
 
 bool IsNonCharacter(WCHAR c) {
     return c >= 0xFFFE || (c & ~1) == 0xDFFE || (0xFDD0 <= c && c <= 0xFDEF);
+}
+
+// hack: to fool CodeQL which doesn't approve of char* => WCHAR* casts
+// and doesn't allow any way to disable that warning
+WCHAR* ToWCHAR(const char* s) {
+    void* d = (void*)s;
+    return (WCHAR*)d;
 }
 
 // return true if s1 == s2, case sensitive
@@ -2081,43 +2093,6 @@ WCHAR* ToLowerInPlace(WCHAR* s) {
 WCHAR* ToLower(const WCHAR* s) {
     WCHAR* s2 = str::Dup(s);
     return ToLowerInPlace(s2);
-}
-
-WCHAR* FmtV(const WCHAR* fmt, va_list args) {
-    WCHAR message[256];
-    size_t bufCchSize = dimof(message);
-    WCHAR* buf = message;
-    for (;;) {
-        // TODO: _vsnwprintf_s fails for certain inputs (e.g. strings containing U+FFFF)
-        //       but doesn't correctly set errno, either, so there's no way of telling
-        //       the failures apart
-        int count = _vsnwprintf_s(buf, bufCchSize, _TRUNCATE, fmt, args);
-        if ((count >= 0) && ((size_t)count < bufCchSize)) {
-            break;
-        }
-        // always grow the buffer exponentially (cf. TODO above)
-        if (buf != message) {
-            free(buf);
-        }
-        bufCchSize = bufCchSize / 2 * 3;
-        buf = AllocArray<WCHAR>(bufCchSize);
-        if (!buf) {
-            break;
-        }
-    }
-    if (buf == message) {
-        buf = str::Dup(message);
-    }
-
-    return buf;
-}
-
-WCHAR* Format(const WCHAR* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    WCHAR* res = FmtV(fmt, args);
-    va_end(args);
-    return res;
 }
 
 size_t TransCharsInPlace(WCHAR* str, const WCHAR* oldChars, const WCHAR* newChars) {
@@ -2290,6 +2265,50 @@ TempStr FormatFloatWithThousandSepTemp(double number, LCID locale) {
     return buf;
 }
 
+constexpr double KB = 1024;
+constexpr double MB = (double)1024 * (double)1024;
+constexpr double GB = (double)1024 * (double)1024 * (double)1024;
+
+static const char* sizeUnitsEnglish[3] = {"GB", "MB", "KB"};
+
+// Format the file size in a short form that rounds to the largest size unit
+// e.g. "3.48 GB", "12.38 MB", "23 KB"
+// To be used in a context where translations are not yet available
+TempStr FormatSizeShortTemp(i64 size, const char* sizeUnits[3]) {
+    const char* unit = nullptr;
+    double s = (double)size;
+    if (!sizeUnits) {
+        sizeUnits = sizeUnitsEnglish;
+    }
+    if (s > GB) {
+        s = s / GB;
+        unit = sizeUnits[0];
+    } else if (s > MB) {
+        s = s / MB;
+        unit = sizeUnits[1];
+    } else {
+        s = s / KB;
+        unit = sizeUnits[2];
+    }
+
+    char* sizestr = str::FormatFloatWithThousandSepTemp(s);
+    if (!unit) {
+        return sizestr;
+    }
+    return fmt::FormatTemp("%s %s", sizestr, unit);
+}
+
+// format file size in a readable way e.g. 1348258 is shown
+// as "1.29 MB (1,348,258 Bytes)"
+TempStr str::FormatFileSizeTemp(i64 size) {
+    if (size <= 0) {
+        return str::FormatTemp("%d", (int)size);
+    }
+    char* n1 = str::FormatSizeShortTemp(size, nullptr);
+    char* n2 = str::FormatNumWithThousandSepTemp(size);
+    return fmt::FormatTemp("%s (%s %s)", n1, n2, "Bytes");
+}
+
 // http://rosettacode.org/wiki/Roman_numerals/Encode#C.2B.2B
 TempStr FormatRomanNumeralTemp(int n) {
     if (n < 1) {
@@ -2310,74 +2329,6 @@ TempStr FormatRomanNumeralTemp(int n) {
         }
     }
     return str::DupTemp(roman.Get());
-}
-
-/* compares two strings "naturally" by sorting numbers within a string
-   numerically instead of by pure ASCII order; we imitate Windows Explorer
-   by sorting special characters before alphanumeric characters
-   (e.g. ".hg" < "2.pdf" < "100.pdf" < "zzz")
-*/
-int CmpNatural(const WCHAR* a, const WCHAR* b) {
-    ReportIf(!a || !b);
-    const WCHAR *aStart = a, *bStart = b;
-    int diff = 0;
-
-    for (; 0 == diff; a++, b++) {
-        // ignore leading and trailing spaces, and differences in whitespace only
-        if (a == aStart || !*a || !*b || IsWs(*a) && IsWs(*b)) {
-            for (; a && IsWs(*a); a++) {
-                // do nothing
-            }
-            for (; b && IsWs(*b); b++) {
-                // do nothing
-            }
-        }
-        // if two strings are identical when ignoring case, leading zeroes and
-        // whitespace, compare them traditionally for a stable sort order
-        if (!*a && !*b) {
-            return wcscmp(aStart, bStart);
-        }
-        if (str::IsDigit(*a) && str::IsDigit(*b)) {
-            // ignore leading zeroes
-            for (; '0' == *a; a++) {
-                // do nothing
-            }
-            for (; '0' == *b; b++) {
-                // do nothing
-            }
-            // compare the two numbers as (positive) integers
-            for (diff = 0; str::IsDigit(*a) || str::IsDigit(*b); a++, b++) {
-                // if either *a or *b isn't a number, they differ in magnitude
-                if (!str::IsDigit(*a)) {
-                    return -1;
-                }
-                if (!str::IsDigit(*b)) {
-                    return 1;
-                }
-                // remember the difference for when the numbers are of the same magnitude
-                if (0 == diff) {
-                    diff = *a - *b;
-                }
-            }
-            // neither *a nor *b is a digit, so continue with them (unless diff != 0)
-            a--;
-            b--;
-        }
-        // sort letters case-insensitively
-        else if (iswalnum(*a) && iswalnum(*b)) {
-            diff = towlower(*a) - towlower(*b);
-            // sort special characters before text and numbers
-        } else if (iswalnum(*a)) {
-            return 1;
-        } else if (iswalnum(*b)) {
-            return -1;
-            // sort special characters by ASCII code
-        } else {
-            diff = *a - *b;
-        }
-    }
-
-    return diff;
 }
 
 static const WCHAR* ParseLimitedNumber(const WCHAR* str, const WCHAR* format, const WCHAR** endOut, void* valueOut) {
@@ -2520,4 +2471,55 @@ int ParseInt(const char* s) {
         }
     }
     return negative ? -value : value;
+}
+
+// the only valid chars are 0-9, . and newlines.
+// a valid version has to match the regex /^\d+(\.\d+)*(\r?\n)?$/
+// Return false if it contains anything else.
+bool IsValidProgramVersion(const char* txt) {
+    if (!str::IsDigit(*txt)) {
+        return false;
+    }
+
+    for (; *txt; txt++) {
+        if (str::IsDigit(*txt)) {
+            continue;
+        }
+        if (*txt == '.' && str::IsDigit(*(txt + 1))) {
+            continue;
+        }
+        if (*txt == '\r' && *(txt + 1) == '\n') {
+            continue;
+        }
+        if (*txt == '\n' && !*(txt + 1)) {
+            continue;
+        }
+        return false;
+    }
+
+    return true;
+}
+
+static unsigned int ExtractNextNumber(const char** txt) {
+    unsigned int val = 0;
+    const char* next = str::Parse(*txt, "%u%?.", &val);
+    *txt = next ? next : *txt + str::Leni(*txt);
+    return val;
+}
+
+// compare two version string. Return 0 if they are the same,
+// > 0 if the first is greater than the second and < 0 otherwise.
+// e.g.
+//   0.9.3.900 is greater than 0.9.3
+//   1.09.300 is greater than 1.09.3 which is greater than 1.9.1
+//   1.2.0 is the same as 1.2
+int CompareProgramVersion(const char* txt1, const char* txt2) {
+    while (*txt1 || *txt2) {
+        unsigned int v1 = ExtractNextNumber(&txt1);
+        unsigned int v2 = ExtractNextNumber(&txt2);
+        if (v1 != v2) {
+            return v1 - v2;
+        }
+    }
+    return 0;
 }

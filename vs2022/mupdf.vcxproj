@@ -362,7 +362,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -383,7 +383,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -404,7 +404,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;ARCH_HAS_NEON=1;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;ARCH_HAS_NEON=1;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -425,7 +425,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>ASAN_BUILD=1;WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ASAN_BUILD=1;WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -447,7 +447,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -468,7 +468,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -489,7 +489,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;ARCH_HAS_NEON=1;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;ARCH_HAS_NEON=1;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -510,7 +510,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>ASAN_BUILD=1;WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ASAN_BUILD=1;WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;DEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -532,7 +532,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>MinSpace</Optimization>
@@ -557,7 +557,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>MinSpace</Optimization>
@@ -582,7 +582,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;ARCH_HAS_NEON=1;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;ARCH_HAS_NEON=1;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>MinSpace</Optimization>
@@ -607,7 +607,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>ASAN_BUILD=1;WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ASAN_BUILD=1;WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>MinSpace</Optimization>
@@ -633,7 +633,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>MinSpace</Optimization>
@@ -659,7 +659,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>MinSpace</Optimization>
@@ -685,7 +685,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;ARCH_HAS_NEON=1;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;ARCH_HAS_NEON=1;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>MinSpace</Optimization>
@@ -711,7 +711,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level4</WarningLevel>
       <DisableSpecificWarnings>4127;4189;4324;4458;4522;4611;4702;4800;6319;4005;4018;4057;4100;4115;4130;4132;4204;4206;4210;4245;4267;4295;4305;4389;4456;4457;4703;4706;4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
-      <PreprocessorDefinitions>ASAN_BUILD=1;WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>ASAN_BUILD=1;WIN32;_WIN32;WINVER=0x0605;_WIN32_WINNT=0x0603;_HAS_ITERATOR_DEBUGGING=0;NDEBUG;USE_JPIP;OPJ_EXPORTS;HAVE_LCMS2MT=1;OPJ_STATIC;SHARE_JPEG;TOFU_NOTO;TOFU_CJK_LANG;TOFU_NOTO_SUMATRA;_UCRT_NOISY_NAN;_HAS_EXCEPTIONS=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>..\ext\zlib;..\mupdf\include;..\mupdf\generated;..\ext\jbig2dec;..\ext\libjpeg-turbo;..\ext\openjpeg\src\lib\openjp2;..\mupdf\scripts\freetype;..\ext\freetype\include;..\ext\mujs;..\ext\harfbuzz\src;..\ext\lcms2\include;..\ext\gumbo-parser\src;..\ext\extract\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>MinSpace</Optimization>
@@ -809,6 +809,7 @@
     <ClInclude Include="..\mupdf\include\mupdf\pdf\object.h" />
     <ClInclude Include="..\mupdf\include\mupdf\pdf\page.h" />
     <ClInclude Include="..\mupdf\include\mupdf\pdf\parse.h" />
+    <ClInclude Include="..\mupdf\include\mupdf\pdf\recolor.h" />
     <ClInclude Include="..\mupdf\include\mupdf\pdf\resource.h" />
     <ClInclude Include="..\mupdf\include\mupdf\pdf\xref.h" />
     <ClInclude Include="..\mupdf\include\mupdf\pdf\zugferd.h" />
@@ -946,6 +947,7 @@
     <ClCompile Include="..\mupdf\source\fitz\separation.c" />
     <ClCompile Include="..\mupdf\source\fitz\shade.c" />
     <ClCompile Include="..\mupdf\source\fitz\skew.c" />
+    <ClCompile Include="..\mupdf\source\fitz\stext-boxer.c" />
     <ClCompile Include="..\mupdf\source\fitz\stext-device.c" />
     <ClCompile Include="..\mupdf\source\fitz\stext-output.c" />
     <ClCompile Include="..\mupdf\source\fitz\stext-search.c" />
@@ -1023,6 +1025,7 @@
     <ClCompile Include="..\mupdf\source\pdf\pdf-page.c" />
     <ClCompile Include="..\mupdf\source\pdf\pdf-parse.c" />
     <ClCompile Include="..\mupdf\source\pdf\pdf-pattern.c" />
+    <ClCompile Include="..\mupdf\source\pdf\pdf-recolor.c" />
     <ClCompile Include="..\mupdf\source\pdf\pdf-repair.c" />
     <ClCompile Include="..\mupdf\source\pdf\pdf-resources.c" />
     <ClCompile Include="..\mupdf\source\pdf\pdf-run.c" />
@@ -1448,159 +1451,6 @@
       <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">../out/rel64_prefast/obj/x64/ReleaseAnalyze/mupdf/NotoSerif-Regular.obj</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">../out/arm64_prefast/obj/arm64/ReleaseAnalyze/mupdf/NotoSerif-Regular.obj</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">../out/rel64_prefast_asan/obj/x64_asan/ReleaseAnalyze/mupdf/NotoSerif-Regular.obj</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-    </CustomBuild>
-    <CustomBuild Include="..\mupdf\resources\fonts\noto\NotoSerifDevanagari-Regular.otf">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../out/dbg32/obj/x32/Debug/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../out/dbg64/obj/x64/Debug/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">../out/dbgarm64/obj/arm64/Debug/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug x64_asan|x64'">../out/dbg64_asan/obj/x64_asan/Debug/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">../out/dbgfull32/obj/x32/DebugFull/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull|x64'">../out/dbgfull64/obj/x64/DebugFull/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull|ARM64'">../out/dbgfullarm64/obj/arm64/DebugFull/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull x64_asan|x64'">../out/dbgfull64_asan/obj/x64_asan/DebugFull/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../out/rel32/obj/x32/Release/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../out/rel64/obj/x64/Release/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">../out/arm64/obj/arm64/Release/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">../out/rel64_asan/obj/x64_asan/Release/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">../out/rel32_prefast/obj/x32/ReleaseAnalyze/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">../out/rel64_prefast/obj/x64/ReleaseAnalyze/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">../out/arm64_prefast/obj/arm64/ReleaseAnalyze/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">../out/rel64_prefast_asan/obj/x64_asan/ReleaseAnalyze/mupdf/NotoSerifDevanagari-Regular.obj</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-    </CustomBuild>
-    <CustomBuild Include="..\mupdf\resources\fonts\noto\NotoSerifGeorgian-Regular.otf">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../out/dbg32/obj/x32/Debug/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../out/dbg64/obj/x64/Debug/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">../out/dbgarm64/obj/arm64/Debug/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug x64_asan|x64'">../out/dbg64_asan/obj/x64_asan/Debug/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">../out/dbgfull32/obj/x32/DebugFull/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull|x64'">../out/dbgfull64/obj/x64/DebugFull/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull|ARM64'">../out/dbgfullarm64/obj/arm64/DebugFull/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull x64_asan|x64'">../out/dbgfull64_asan/obj/x64_asan/DebugFull/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../out/rel32/obj/x32/Release/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../out/rel64/obj/x64/Release/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">../out/arm64/obj/arm64/Release/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">../out/rel64_asan/obj/x64_asan/Release/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">../out/rel32_prefast/obj/x32/ReleaseAnalyze/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">../out/rel64_prefast/obj/x64/ReleaseAnalyze/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">../out/arm64_prefast/obj/arm64/ReleaseAnalyze/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">../out/rel64_prefast_asan/obj/x64_asan/ReleaseAnalyze/mupdf/NotoSerifGeorgian-Regular.obj</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-      <Message Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Message>
-    </CustomBuild>
-    <CustomBuild Include="..\mupdf\resources\fonts\noto\NotoSerifTelugu-Regular.otf">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86_64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='DebugFull|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf ARM64</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">../out/dbg32/obj/x32/Debug/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../out/dbg64/obj/x64/Debug/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">../out/dbgarm64/obj/arm64/Debug/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug x64_asan|x64'">../out/dbg64_asan/obj/x64_asan/Debug/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">../out/dbgfull32/obj/x32/DebugFull/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull|x64'">../out/dbgfull64/obj/x64/DebugFull/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull|ARM64'">../out/dbgfullarm64/obj/arm64/DebugFull/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugFull x64_asan|x64'">../out/dbgfull64_asan/obj/x64_asan/DebugFull/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">../out/rel32/obj/x32/Release/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../out/rel64/obj/x64/Release/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">../out/arm64/obj/arm64/Release/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release x64_asan|x64'">../out/rel64_asan/obj/x64_asan/Release/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|Win32'">../out/rel32_prefast/obj/x32/ReleaseAnalyze/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|x64'">../out/rel64_prefast/obj/x64/ReleaseAnalyze/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze|ARM64'">../out/arm64_prefast/obj/arm64/ReleaseAnalyze/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='ReleaseAnalyze x64_asan|x64'">../out/rel64_prefast_asan/obj/x64_asan/ReleaseAnalyze/mupdf/NotoSerifTelugu-Regular.obj</Outputs>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='DebugFull|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">..\bin\bin2coff.exe "%(Identity)" "$(IntDir)/%(Filename).obj" _binary_%(Filename)_otf x86</Message>

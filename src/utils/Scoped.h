@@ -48,17 +48,34 @@ struct AutoDelete {
     AutoDelete& operator=(AutoDelete&& other) = delete;
     AutoDelete& operator=(const AutoDelete& other) = delete;
     AutoDelete& operator=(const AutoDelete&& other) = delete;
-
     operator T*() const { // NOLINT
         return o;
     }
     T* operator->() const { // NOLINT
         return o;
     }
+};
 
-    T* Get() const {
-        return o;
+template <typename T>
+struct AutoRun {
+    using fnPtr = void (*)(T*);
+    T* o = nullptr;
+    fnPtr fn = nullptr;
+    AutoRun() = default;
+    AutoRun(fnPtr fn, T* o) { // NOLINT
+        this->fn = fn;
+        this->o = o;
     }
+    ~AutoRun() {
+        if (fn) {
+            fn(o);
+        }
+    }
+
+    AutoRun& operator=(AutoRun& other) = delete;
+    AutoRun& operator=(AutoRun&& other) = delete;
+    AutoRun& operator=(const AutoRun& other) = delete;
+    AutoRun& operator=(const AutoRun&& other) = delete;
 };
 
 // this is like std::unique_ptr<char> but specialized for our needs
@@ -148,11 +165,6 @@ struct AutoFree {
 
     char* StealData() {
         return this->Release();
-    }
-
-    void TakeOwnershipOf(const char* s) {
-        free(data);
-        data = (char*)s;
     }
 };
 

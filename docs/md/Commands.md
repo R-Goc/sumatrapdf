@@ -21,7 +21,6 @@ CmdExit,Ctrl + Q,Exit Application,
 CmdMoveFrameFocus,F6,Move Frame Focus,
 CmdNewWindow,Ctrl + N,Open New SumatraPDF Window,
 CmdOpenFile,Ctrl + O,Open File...,
-CmdOpenFolder,,Open Folder...,
 CmdOpenNextFileInFolder,Shift + Ctrl + Right,Open Next File In Folder,
 CmdOpenPrevFileInFolder,Shift + Ctrl + Left,Open Previous File In Folder,
 CmdOpenSelectedDocument,,Open Selected Document,
@@ -94,7 +93,10 @@ CmdCloseTabsToTheRight,,Close Tabs To The Right,ver 3.6+
 CmdCloseOtherTabs,,Close Other Tabs,ver 3.6+
 CmdNextTab,Ctrl + PageUp,Next Tab,
 CmdPrevTab,Ctrl + PageDown,Previous Tab,
-CmdSmartTabSwitch,Ctrl + Tab,Smart Tab Switch,ver 3.6+
+CmdMoveTabRight,Ctrl + Shift + PageUp,Move Tab Right,ver 3.6+
+CmdMoveTabLeft,Ctrl + Shift + PageDown,Move Tab Left,ver 3.6+
+CmdNextTabSmart,Ctrl + Tab,Smart tab Switch,ver 3.6+
+CmdPrevTabSmart,Ctrl + Shift + Tab,Smart tab Switch,ver 3.6+
 ```
 
 ## Navigation
@@ -256,6 +258,8 @@ CmdDebugDownloadSymbols,,Debug: Download Symbols
 CmdDebugShowNotif,,Debug: Show Notification
 CmdDebugStartStressTest,,Debug: Start Stress Test
 CmdDebugTestApp,,Debug: Test App
+CmdDebugTogglePredictiveRender,,Debug: Toggle Predictive Rendering
+CmdDebugToggleRtl,,Debug: Toggle Rtl
 CmdNone,,Do nothing
 ```
 
@@ -294,7 +298,7 @@ You can over-ride `a` shortcut to creat green (`#00ff00`) highlight annotation i
 
 You can create multiple keyboard shortcuts for multiple colors.
 
-Arguments can be: strings, numbers, booleans, colors (`#rrggbb` or `#rrggbbaa` format).
+Arguments can be: strings, numbers, booleans, colors (`#rrggbb` or `#aarrggbb` format).
 
 Arguments have names. For example `CmdCreateAnnotHighlight` has `color` argument of type color and optional `openedit` boolean argument.
 

@@ -25,6 +25,10 @@ constexpr COLORREF kColWindowBg = RGB(0x99, 0x99, 0x99);
 constexpr int kPreviewMargin = 2;
 constexpr UINT kUwmPaintAgain = (WM_USER + 101);
 
+EBookUI* GetEBookUI() {
+    return nullptr;
+}
+
 IFACEMETHODIMP PreviewBase::GetThumbnail(uint cx, HBITMAP* phbmp, WTS_ALPHATYPE* pdwAlpha) {
     EngineBase* engine = GetEngine();
     if (!engine) {
@@ -295,7 +299,7 @@ static LRESULT CALLBACK PreviewWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
         case WM_KEYDOWN:
             return OnKeydown(hwnd, wp);
         case WM_LBUTTONDOWN:
-            SetFocus(hwnd);
+            HwndSetFocus(hwnd);
             return 0;
         case WM_MOUSEWHEEL: {
             auto delta = GET_WHEEL_DELTA_WPARAM(wp);

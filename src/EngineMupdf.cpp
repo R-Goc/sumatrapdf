@@ -48,14 +48,8 @@ static float layoutA4DyPt = 842.f;
 
 static float layoutFontEm = 11.f;
 
-// maximum size of a file that's entirely loaded into memory before parsed
-// and displayed; larger files will be kept open while they're displayed
-// so that their content can be loaded on demand in order to preserve memory
-constexpr i64 kMaxMemoryFileSize = 32 * 1024 * 1024;
-
 // in mupdf_load_system_font.c
-extern "C" void drop_cached_fonts_for_ctx(fz_context*);
-extern "C" void pdf_install_load_system_font_funcs(fz_context* ctx);
+extern "C" void install_load_windows_font_funcs(fz_context* ctx);
 
 static AnnotationType AnnotationTypeFromPdfAnnot(enum pdf_annot_type tp) {
     return (AnnotationType)tp;
@@ -411,45 +405,98 @@ static void* FzMemdup(fz_context* ctx, void* p, size_t size) {
     return res;
 }
 
-static fz_stream* FzOpenFile2(fz_context* ctx, const char* path) {
+static fz_stream* FzStreamFromData(fz_context* ctx, const u8* data, int size) {
+    fz_stream* stm = nullptr;
+    // TODO: we copy so that the memory ends up in chunk allocated
+    // by libmupdf so that it works across dll boundaries.
+    // We can either use  fz_new_buffer_from_shared_data
+    // and free the data on the side or create Allocator that
+    // uses fz_malloc_no_throw and pass it to ReadFileWithAllocator
+    void* dataCopy = FzMemdup(ctx, (void*)data, size);
+    if (!dataCopy) {
+        return nullptr;
+    }
+
+    fz_buffer* buf = fz_new_buffer_from_data(ctx, (u8*)dataCopy, size);
+    fz_var(buf);
+    fz_try(ctx) {
+        stm = fz_open_buffer(ctx, buf);
+    }
+    fz_always(ctx) {
+        fz_drop_buffer(ctx, buf);
+    }
+    fz_catch(ctx) {
+        stm = nullptr;
+        fz_report_error(ctx);
+    }
+    return stm;
+}
+
+// maximum size of a file that's entirely loaded into memory before parsed
+// and displayed; larger files will be kept open while they're displayed
+// so that their content can be loaded on demand in order to preserve memory
+constexpr i64 kMaxMemoryFileSize = 32 * 1024 * 1024;
+
+static fz_stream* FzReadFileIfSmall(fz_context* ctx, const char* path) {
     fz_stream* stm = nullptr;
     i64 fileSize = file::GetSize(path);
     // load small files entirely into memory so that they can be
     // overwritten even by programs that don't open files with FILE_SHARE_READ
-    if (fileSize > 0 && fileSize < kMaxMemoryFileSize) {
-        ByteSlice dataTmp = file::ReadFile(path);
-        if (dataTmp.empty()) {
-            // failed to read
-            return nullptr;
-        }
-
-        // TODO: we copy so that the memory ends up in chunk allocated
-        // by libmupdf so that it works across dll boundaries.
-        // We can either use  fz_new_buffer_from_shared_data
-        // and free the data on the side or create Allocator that
-        // uses fz_malloc_no_throw and pass it to ReadFileWithAllocator
-        size_t size = dataTmp.size();
-        void* data = FzMemdup(ctx, (void*)dataTmp.data(), size);
-        if (!data) {
-            return nullptr;
-        }
-        dataTmp.Free();
-
-        fz_buffer* buf = fz_new_buffer_from_data(ctx, (u8*)data, size);
-        fz_var(buf);
-        fz_try(ctx) {
-            stm = fz_open_buffer(ctx, buf);
-        }
-        fz_always(ctx) {
-            fz_drop_buffer(ctx, buf);
-        }
-        fz_catch(ctx) {
-            stm = nullptr;
-            fz_report_error(ctx);
-        }
-        return stm;
+    bool isSmallFile = fileSize > 0 && fileSize < kMaxMemoryFileSize;
+    if (!isSmallFile) {
+        return nullptr;
     }
 
+    ByteSlice d = file::ReadFile(path);
+    if (d.empty()) {
+        // failed to read
+        return nullptr;
+    }
+
+    stm = FzStreamFromData(ctx, d.data(), d.Size());
+    d.Free();
+    return stm;
+}
+
+/*
+https://github.com/sumatrapdfreader/sumatrapdf/issues/4514
+Some PDF files have garbage at the beginning, before the %PDF- marker
+Sometimes removing this garbage fixes the file for mupdf
+*/
+static fz_stream* FzReadMaybeFixPDF(fz_context* ctx, const char* path) {
+    fz_stream* stm;
+    // fast fail: read enough to check if this is PDF file with garbage
+    char buf[1024];
+    size_t bufSize = dimof(buf);
+    int n = file::ReadN(path, buf, bufSize);
+    if (n < 1024) {
+        return nullptr;
+    }
+    n = str::BufFind(buf, (int)bufSize, "%PDF-");
+    if (n <= 0) {
+        // not PDF or no garbage at the beginning
+        return nullptr;
+    }
+
+    ByteSlice d = file::ReadFile(path);
+    if (d.empty()) {
+        // failed to read
+        return nullptr;
+    }
+
+    // strip garbage
+    const u8* data = d.data() + n;
+    int size = d.Size() - n;
+    stm = FzStreamFromData(ctx, data, size);
+    d.Free();
+    return stm;
+}
+
+static fz_stream* FzOpenOrReadFile(fz_context* ctx, const char* path) {
+    fz_stream* stm = FzReadFileIfSmall(ctx, path);
+    if (stm) {
+        return stm;
+    }
     WCHAR* pathW = ToWStrTemp(path);
     fz_try(ctx) {
         stm = fz_open_file_w(ctx, pathW);
@@ -1577,7 +1624,7 @@ EngineMupdf::EngineMupdf() {
     _ctx = fz_new_context(nullptr, &fz_locks_ctx, FZ_STORE_DEFAULT);
     InstallFitzErrorCallbacks(_ctx);
 
-    pdf_install_load_system_font_funcs(_ctx);
+    install_load_windows_font_funcs(_ctx);
     fz_register_document_handlers(_ctx);
 }
 
@@ -1614,7 +1661,6 @@ EngineMupdf::~EngineMupdf() {
     }
 
     fz_drop_document(ctx, _doc);
-    drop_cached_fonts_for_ctx(ctx);
     fz_drop_context(ctx);
 
     delete pageLabels;
@@ -1738,7 +1784,7 @@ ByteSlice EngineMupdf::LoadStreamFromPDFFile(const char* filePath) {
 ByteSlice LoadEmbeddedPDFFile(const char* filePath) {
     EngineMupdf* engine = new EngineMupdf();
     auto res = engine->LoadStreamFromPDFFile(filePath);
-    engine->Release();
+    SafeEngineRelease(&engine);
     return res;
 }
 
@@ -1802,6 +1848,7 @@ static ByteSlice PalmDocToHTML(const char* path) {
 }
 
 bool EngineMupdf::Load(const char* path, PasswordUI* pwdUI) {
+    bool ok;
     const char* pathA = path;
     auto ctx = Ctx();
     ReportIf(FilePath() || _doc || !ctx);
@@ -1850,25 +1897,31 @@ bool EngineMupdf::Load(const char* path, PasswordUI* pwdUI) {
         return FinishLoading();
     }
 
-    fz_stream* file = nullptr;
-
-    fz_var(file);
-    fz_try(ctx) {
-        file = FzOpenFile2(ctx, fnCopy);
-    }
-    fz_catch(ctx) {
-        fz_report_error(ctx);
-        file = nullptr;
-    }
-
-    if (!LoadFromStream(file, FilePath(), pwdUI)) {
+    fz_stream* file = FzOpenOrReadFile(ctx, fnCopy);
+    ok = LoadFromStream(file, FilePath(), pwdUI);
+    if (!ok) {
         return false;
     }
 
     if (streamNo < 0) {
+        ok = FinishLoading();
+        if (ok) {
+            return true;
+        }
+        fz_drop_document(ctx, _doc);
+        _doc = nullptr;
+        file = FzReadMaybeFixPDF(ctx, FilePath());
+        if (!file) {
+            return false;
+        }
+        ok = LoadFromStream(file, FilePath(), pwdUI);
+        if (!ok) {
+            return false;
+        }
         return FinishLoading();
     }
 
+    // load a stream from inside a pdf document
     pdfdoc = pdf_specifics(ctx, _doc);
     if (pdfdoc) {
         if (!pdf_obj_num_is_stream(ctx, pdfdoc, streamNo)) {
@@ -1900,29 +1953,6 @@ bool EngineMupdf::Load(const char* path, PasswordUI* pwdUI) {
     return FinishLoading();
 }
 
-#if 0
-const char* custom_css = R"(
-* {
-    background-color: #f3f3f3;
-    line-height: 1.3em;
-}
-@page{
-    margin:2em 2em;    
-}
-)";
-#endif
-
-const char* custom_css = nullptr;
-
-/*
-line-height: 2.5em;
-font-family: "Consolas";
-
-    line-height: 2.5em;
-    font-family: Consolas;
-
-*/
-
 // TODO: need to do stuff to support .txt etc.
 bool EngineMupdf::Load(IStream* stream, const char* nameHint, PasswordUI* pwdUI) {
     auto ctx = Ctx();
@@ -1949,6 +1979,11 @@ bool EngineMupdf::Load(IStream* stream, const char* nameHint, PasswordUI* pwdUI)
     return FinishLoading();
 }
 
+// is implemented in SumatraPDF.exe, PdfFilter and PdfPreview
+// TODO: allow setting per
+extern EBookUI* GetEBookUI();
+
+// stm is either freed or retained via _doc
 bool EngineMupdf::LoadFromStream(fz_stream* stm, const char* nameHint, PasswordUI* pwdUI) {
     if (!stm) {
         return false;
@@ -1974,8 +2009,22 @@ bool EngineMupdf::LoadFromStream(fz_stream* stm, const char* nameHint, PasswordU
         lfontDy = 8.f;
     }
 
-    if (custom_css) {
-        fz_set_user_css(ctx, custom_css);
+    auto eBookUI = GetEBookUI();
+    if (eBookUI) {
+        if (eBookUI->fontSize > 6 && eBookUI->fontSize < 30) {
+            lfontDy = eBookUI->fontSize;
+        }
+        if (eBookUI->layoutDx > 100) {
+            ldx = eBookUI->layoutDx;
+        }
+        if (eBookUI->layoutDy > 100) {
+            ldy = eBookUI->layoutDy;
+        }
+        if (eBookUI->customCSS) {
+            fz_set_user_css(ctx, eBookUI->customCSS);
+        }
+        bool useDocCss = !eBookUI->ignoreDocumentCSS;
+        fz_set_use_document_css(ctx, useDocCss);
     }
 
     float dx, dy, fontDy;
@@ -2001,8 +2050,6 @@ bool EngineMupdf::LoadFromStream(fz_stream* stm, const char* nameHint, PasswordU
     if (!_doc) {
         return false;
     }
-
-    docStream = stm;
 
     isPasswordProtected = fz_needs_password(ctx, _doc);
     if (!isPasswordProtected) {
@@ -2034,25 +2081,25 @@ bool EngineMupdf::LoadFromStream(fz_stream* stm, const char* nameHint, PasswordU
         }
 
         // MuPDF expects passwords to be UTF-8 encoded
-        AutoFreeStr pwdA = str::Dup(pwd);
-        ok = fz_authenticate_password(ctx, _doc, pwdA.Get());
+        TempStr pwdA = pwd.Get();
+        ok = fz_authenticate_password(ctx, _doc, pwdA);
         // according to the spec (1.7 ExtensionLevel 3), the password
         // for crypt revisions 5 and above are in SASLprep normalization
         if (!ok) {
             // TODO: this is only part of SASLprep
             pwd.Set(NormalizeString(pwd, 5 /* NormalizationKC */));
             if (pwd) {
-                pwdA = str::Dup(pwd);
-                ok = fz_authenticate_password(ctx, _doc, pwdA.Get());
+                pwdA = pwd.Get();
+                ok = fz_authenticate_password(ctx, _doc, pwdA);
             }
         }
         // older Acrobat versions seem to have considered passwords to be in codepage 1252
         // note: such passwords aren't portable when stored as Unicode text
         if (!ok && GetACP() != 1252) {
-            AutoFreeStr pwd_ansi = str::Dup(pwd.Get());
-            AutoFreeWStr pwd_cp1252(strconv::StrToWStr(pwd_ansi.Get(), 1252));
-            pwdA = ToUtf8(pwd_cp1252);
-            ok = fz_authenticate_password(ctx, _doc, pwdA.Get());
+            TempStr pwd_ansi = pwd.Get();
+            TempWStr pwdCp1252 = strconv::StrCPToWStrTemp(pwd_ansi, 1252);
+            pwdA = ToUtf8Temp(pwdCp1252);
+            ok = fz_authenticate_password(ctx, _doc, pwdA);
         }
     }
 
@@ -2060,7 +2107,7 @@ bool EngineMupdf::LoadFromStream(fz_stream* stm, const char* nameHint, PasswordU
         memcpy(digest + 16, pdf_crypt_key(ctx, pdfdoc->crypt), 32);
         decryptionKey = _MemToHex(&digest);
     }
-
+    // TODO: if !ok,
     return ok;
 }
 
@@ -3652,7 +3699,7 @@ EngineBase* CreateEngineMupdfFromFile(const char* path, Kind kind, int displayDP
         }
         engine->displayDPI = displayDPI;
         if (!engine->Load(stream, "foo.fb2", pwdUI)) {
-            engine->Release();
+            SafeEngineRelease(&engine);
             return nullptr;
         }
         engine->SetFilePath(path);
@@ -3664,7 +3711,7 @@ EngineBase* CreateEngineMupdfFromFile(const char* path, Kind kind, int displayDP
     }
     engine->displayDPI = displayDPI;
     if (!engine->Load(path, pwdUI)) {
-        engine->Release();
+        SafeEngineRelease(&engine);
         return nullptr;
     }
     return engine;
@@ -3673,7 +3720,7 @@ EngineBase* CreateEngineMupdfFromFile(const char* path, Kind kind, int displayDP
 EngineBase* CreateEngineMupdfFromStream(IStream* stream, const char* nameHint, PasswordUI* pwdUI) {
     EngineMupdf* engine = new EngineMupdf();
     if (!engine->Load(stream, nameHint, pwdUI)) {
-        engine->Release();
+        SafeEngineRelease(&engine);
         return nullptr;
     }
     return engine;
@@ -3683,7 +3730,7 @@ EngineBase* CreateEngineMupdfFromData(const ByteSlice& data, const char* nameHin
     EngineMupdf* engine = new EngineMupdf();
     IStream* stream = CreateStreamFromData(data);
     if (!engine->Load(stream, nameHint, pwdUI)) {
-        engine->Release();
+        SafeEngineRelease(&engine);
         return nullptr;
     }
     return engine;

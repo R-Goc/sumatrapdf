@@ -1,16 +1,12 @@
 /* Copyright 2022 the SumatraPDF project authors (see AUTHORS file).
    License: GPLv3 */
 
-/* Code related to:
- * user-initiated search
- * DDE commands, including search
- */
-
 #include "utils/BaseUtil.h"
 #include "utils/ScopedWin.h"
 #include "utils/FileUtil.h"
 #include "utils/UITask.h"
 #include "utils/WinUtil.h"
+#include "utils/ThreadUtil.h"
 
 #include "wingui/UIModels.h"
 
@@ -92,7 +88,7 @@ void FindFirst(MainWindow* win) {
         if (HwndIsFocused(win->hwndFindEdit)) {
             SendMessageW(win->hwndFindEdit, WM_SETFOCUS, 0, 0);
         } else {
-            SetFocus(win->hwndFindEdit);
+            HwndSetFocus(win->hwndFindEdit);
         }
         return;
     }
@@ -120,7 +116,7 @@ void FindFirst(MainWindow* win) {
         dm->textSearch->SetSensitive(matchCase);
     }
 
-    FindTextOnThread(win, TextSearchDirection::Forward, true);
+    FindTextOnThread(win, TextSearch::Direction::Forward, true);
 }
 
 void FindNext(MainWindow* win) {
@@ -128,7 +124,7 @@ void FindNext(MainWindow* win) {
         return;
     }
     if (SendMessageW(win->hwndToolbar, TB_ISBUTTONENABLED, CmdFindNext, 0)) {
-        FindTextOnThread(win, TextSearchDirection::Forward, true);
+        FindTextOnThread(win, TextSearch::Direction::Forward, true);
     }
 }
 
@@ -137,7 +133,7 @@ void FindPrev(MainWindow* win) {
         return;
     }
     if (SendMessageW(win->hwndToolbar, TB_ISBUTTONENABLED, CmdFindPrev, 0)) {
-        FindTextOnThread(win, TextSearchDirection::Backward, true);
+        FindTextOnThread(win, TextSearch::Direction::Backward, true);
     }
 }
 
@@ -150,7 +146,7 @@ void FindToggleMatchCase(MainWindow* win) {
     Edit_SetModify(win->hwndFindEdit, TRUE);
 }
 
-void FindSelection(MainWindow* win, TextSearchDirection direction) {
+void FindSelection(MainWindow* win, TextSearch::Direction direction) {
     if (!win->IsDocLoaded() || !NeedsFindUI(win)) {
         return;
     }
@@ -212,29 +208,33 @@ static void UpdateFindStatus(UpdateFindStatusData* d) {
     }
     auto wnd = GetNotificationForGroup(win->hwndCanvas, kNotifFindProgress);
     if (!wnd) {
+        logf("UpdateFindStatus: no wnd, setting win->findCancelled to true\n");
         win->findCancelled = true;
         return;
     }
-    if (!UpdateNotificationProgress(wnd, d->current, d->total)) {
+    TempStr msg = str::FormatTemp(_TRA("Searching %d of %d..."), d->current, d->total);
+    int perc = CalcPerc(d->current, d->total);
+    if (!UpdateNotificationProgress(wnd, msg, perc)) {
         // the search has been canceled by closing the notification
+        logf("UpdateFindStatus: UpdateNotificationProgress() returned false, setting win->findCancelled to true\n");
         win->findCancelled = true;
     }
 }
 
-struct FindThreadData : public ProgressUpdateUI {
+struct FindThreadData {
     MainWindow* win = nullptr;
-    TextSearchDirection direction{TextSearchDirection::Forward};
+    TextSearch::Direction direction = TextSearch::Direction::Forward;
     bool wasModified = false;
     AutoFreeWStr text;
     HANDLE thread = nullptr;
 
-    FindThreadData(MainWindow* win, TextSearchDirection direction, const char* text, bool wasModified) {
+    FindThreadData(MainWindow* win, TextSearch::Direction direction, const char* text, bool wasModified) {
         this->win = win;
         this->direction = direction;
         this->text = ToWStr(text);
         this->wasModified = wasModified;
     }
-    ~FindThreadData() override {
+    ~FindThreadData() {
         CloseHandle(thread);
     }
 
@@ -248,8 +248,6 @@ struct FindThreadData : public ProgressUpdateUI {
             args.hwndParent = win->hwndCanvas;
             args.timeoutMs = 0;
             args.onRemoved = MkFunc1Void(RemoveNotification);
-
-            args.progressMsg = _TRA("Searching %d of %d...");
             args.groupId = kNotifFindProgress;
             ShowNotification(args);
         }
@@ -274,7 +272,7 @@ struct FindThreadData : public ProgressUpdateUI {
             // i.e. canceled
             RemoveNotification(wnd);
         } else if (!success && loopedAround) {
-            NotificationUpdateMessage(wnd, _TRA("No matches were found"), kNotifDefaultTimeOut);
+            NotificationUpdateMessage(wnd, _TRA("No matches were found"), 0);
         } else {
             auto pageNo = win->AsFixed()->textSearch->GetSearchHitStartPageNo();
             TempStr label = win->ctrl->GetPageLabeTemp(pageNo);
@@ -283,30 +281,41 @@ struct FindThreadData : public ProgressUpdateUI {
                 buf = str::FormatTemp(_TRA("Found text at page %s (again)"), label);
                 MessageBeep(MB_ICONINFORMATION);
             }
-            NotificationUpdateMessage(wnd, buf, kNotifDefaultTimeOut, loopedAround);
+            NotificationUpdateMessage(wnd, buf, 0, loopedAround);
         }
     }
 
-    bool WasCanceled() override {
-        return !IsMainWindowValid(win) || win->findCancelled;
+    bool WasCanceled() {
+        bool winValid = IsMainWindowValid(win);
+        auto res = !winValid || win->findCancelled;
+        if (res) {
+            logf("FindThreadData: WasCanceled() returns true, isMainWindowValid: %d, win->findCancelled: %d\n",
+                 (int)winValid, (int)win->findCancelled);
+        }
+        return res;
     }
 
-    void UpdateProgress(int current, int total) override {
+    void UpdateProgress(int current, int total) {
         auto data = new UpdateFindStatusData;
         data->win = this->win;
         data->current = current;
         data->total = total;
         auto fn = MkFunc0<UpdateFindStatusData>(UpdateFindStatus, data);
-        uitask::Post(fn, "UpdateFindStatus");
+        uitask::Post(fn, nullptr);
     }
 };
 
 struct FindEndTaskData {
-    MainWindow* win;
-    FindThreadData* ftd;
-    TextSel* textSel;
-    bool wasModifiedCanceled;
-    bool loopedAround;
+    MainWindow* win = nullptr;
+    FindThreadData* ftd = nullptr;
+    TextSel* textSel = nullptr;
+    bool wasModifiedCanceled = false;
+    bool loopedAround = false;
+    FindEndTaskData() = default;
+    ~FindEndTaskData() {
+        delete ftd;
+        ftd = nullptr;
+    }
 };
 
 static void FindEndTask(FindEndTaskData* d) {
@@ -317,8 +326,6 @@ static void FindEndTask(FindEndTaskData* d) {
     auto loopedAround = d->loopedAround;
 
     AutoDelete delData(d);
-    AutoDelete delFtd(ftd);
-
     if (!IsMainWindowValid(win)) {
         return;
     }
@@ -341,9 +348,18 @@ static void FindEndTask(FindEndTaskData* d) {
     win->findThread = nullptr;
 }
 
-static DWORD WINAPI FindThread(LPVOID d) {
-    FindThreadData* ftd = (FindThreadData*)d;
+static void UpdateSearchProgress(FindThreadData* ftd, ProgressUpdateData* data) {
+    if (data->wasCancelled) {
+        bool wasCancelled = ftd->WasCanceled();
+        *data->wasCancelled = wasCancelled;
+        return;
+    }
+    ftd->UpdateProgress(data->current, data->total);
+}
+
+static void FindThread(FindThreadData* ftd) {
     ReportIf(!(ftd && ftd->win && ftd->win->ctrl && ftd->win->ctrl->AsFixed()));
+
     MainWindow* win = ftd->win;
     DisplayModel* dm = win->AsFixed();
     auto textSearch = dm->textSearch;
@@ -352,25 +368,26 @@ static DWORD WINAPI FindThread(LPVOID d) {
     auto engine = dm->GetEngine();
     engine->AddRef();
     defer {
-        engine->Release();
+        SafeEngineRelease(&engine);
     };
 
     TextSel* rect;
-    dm->textSearch->SetDirection(ftd->direction);
+    textSearch->progressCb = MkFunc1<FindThreadData, ProgressUpdateData*>(UpdateSearchProgress, ftd);
+    textSearch->SetDirection(ftd->direction);
     if (ftd->wasModified || !ctrl->ValidPageNo(textSearch->GetCurrentPageNo()) ||
         !dm->GetPageInfo(textSearch->GetCurrentPageNo())->visibleRatio) {
-        rect = textSearch->FindFirst(ctrl->CurrentPageNo(), ftd->text, ftd);
+        rect = textSearch->FindFirst(ctrl->CurrentPageNo(), ftd->text);
     } else {
-        rect = textSearch->FindNext(ftd);
+        rect = textSearch->FindNext();
     }
 
     bool loopedAround = false;
     if (!win->findCancelled && !rect) {
         // With no further findings, start over (unless this was a new search from the beginning)
-        int startPage = (TextSearchDirection::Forward == ftd->direction) ? 1 : ctrl->PageCount();
+        int startPage = (TextSearch::Direction::Forward == ftd->direction) ? 1 : ctrl->PageCount();
         if (!ftd->wasModified || ctrl->CurrentPageNo() != startPage) {
             loopedAround = true;
-            rect = textSearch->FindFirst(startPage, ftd->text, ftd);
+            rect = textSearch->FindFirst(startPage, ftd->text);
         }
     }
 
@@ -397,7 +414,6 @@ static DWORD WINAPI FindThread(LPVOID d) {
     auto fn = MkFunc0<FindEndTaskData>(FindEndTask, data);
     uitask::Post(fn, "TaskFindEnd");
     DestroyTempAllocator();
-    return 0;
 }
 
 // returns true if did abort a thread or hidden the notification
@@ -405,6 +421,7 @@ bool AbortFinding(MainWindow* win, bool hideMessage) {
     bool res = false;
     if (win->findThread) {
         res = true;
+        logf("AboftFinding: setting win->findCancelled to true\n");
         win->findCancelled = true;
         WaitForSingleObject(win->findThread, INFINITE);
     }
@@ -423,7 +440,7 @@ bool AbortFinding(MainWindow* win, bool hideMessage) {
 //   if true, starting a search for new term
 //   if false, searching for the next occurence of previous term
 // TODO: should detect wasModified by comparing with the last search result
-void FindTextOnThread(MainWindow* win, TextSearchDirection direction, const char* text, bool wasModified,
+void FindTextOnThread(MainWindow* win, TextSearch::Direction direction, const char* text, bool wasModified,
                       bool showProgress) {
     AbortFinding(win, false);
     if (str::IsEmpty(text)) {
@@ -432,7 +449,8 @@ void FindTextOnThread(MainWindow* win, TextSearchDirection direction, const char
     FindThreadData* ftd = new FindThreadData(win, direction, text, wasModified);
     ftd->ShowUI(showProgress);
     win->findThread = nullptr;
-    win->findThread = CreateThread(nullptr, 0, FindThread, ftd, 0, nullptr);
+    auto fn = MkFunc0(FindThread, ftd);
+    win->findThread = StartThread(fn, "FindThread");
     ftd->thread = win->findThread; // safe because only accesssed on ui thread
 }
 
@@ -449,7 +467,7 @@ char* ReverseTextTemp(char* s) {
     return ToUtf8Temp(ws);
 }
 
-void FindTextOnThread(MainWindow* win, TextSearchDirection direction, bool showProgress) {
+void FindTextOnThread(MainWindow* win, TextSearch::Direction direction, bool showProgress) {
     char* s = HwndGetTextTemp(win->hwndFindEdit);
     // if document is rtl, need to reverse the text
     // s = ReverseTextTemp(s);
@@ -573,7 +591,7 @@ bool OnInverseSearch(MainWindow* win, int x, int y) {
     args.msg = _TRA("Cannot start inverse search command. Please check the command line in the settings.");
     if (!str::IsEmpty(cmdLine.Get())) {
         // resolve relative paths with relation to SumatraPDF.exe's directory
-        char* appDir = GetExeDirTemp();
+        char* appDir = GetSelfExeDirTemp();
         AutoCloseHandle process(LaunchProcessInDir(cmdLine, appDir));
         if (!process) {
             ShowNotification(args);
@@ -754,7 +772,7 @@ static const char* HandleSearchCmd(const char* cmd, bool* ack) {
     }
     bool wasModified = true;
     bool showProgress = true;
-    FindTextOnThread(win, TextSearchDirection::Forward, term, wasModified, showProgress);
+    FindTextOnThread(win, TextSearch::Direction::Forward, term, wasModified, showProgress);
     win->Focus();
     *ack = true;
     return next;

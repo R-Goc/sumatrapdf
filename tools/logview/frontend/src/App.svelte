@@ -1,15 +1,18 @@
 <script>
-  import { afterUpdate, onMount } from "svelte";
+  import { run, preventDefault } from "svelte/legacy";
+
   import { version } from "./version";
 
   let idx = 2;
   /** @type {[string, number][]} */
-  let logs = [["Logview SumatraPDF", 1]];
-  let filteredLogs = [];
+  let logs = $state([]);
+  let filteredLogs = $state([]);
   let autoScrollPaused = false;
-  let btnText = "pause scrolling";
-  let searchTerm = "";
-  let element;
+  let btnText = $state("pause scrolling");
+  let searchTerm = $state("");
+  let searchTermLC = "";
+  /** @type {HTMLElement} */
+  let logAreaEl;
 
   /**
    * @param {string} s
@@ -19,6 +22,7 @@
     if (searchTerm === "") {
       return false;
     }
+    s = s.toLowerCase();
     return s.includes(searchTerm);
   }
 
@@ -31,40 +35,47 @@
     s = s.trimEnd();
     let lines = s.split("\n");
     let didMatch = false;
+    console.log(`lines: ${lines.length}`);
     for (let l of lines) {
       /** @type {[string, number]}*/
       let el = [l, idx];
       idx = idx + 1;
       logs.push(el);
-      if (matches(l, searchTerm)) {
+      if (matches(l, searchTermLC)) {
         filteredLogs.push(el);
         didMatch = true;
       }
     }
-    if (searchTerm === "") {
-      logs = logs;
+
+    if (searchTermLC === "") {
       filteredLogs = logs;
+      if (!autoScrollPaused) {
+        scrollToBottom(logAreaEl);
+      }
       return;
     }
+
     if (didMatch) {
       filteredLogs = filteredLogs;
+      if (!autoScrollPaused) {
+        scrollToBottom(logAreaEl);
+      }
     }
   }
-
-  $: filterLogs(searchTerm);
 
   /**
    * @param {string} searchTerm
    */
   function filterLogs(searchTerm) {
     searchTerm = searchTerm.trim();
-    if (searchTerm === "") {
+    searchTermLC = searchTerm.toLowerCase();
+    if (searchTermLC === "") {
       filteredLogs = logs;
       return;
     }
     let res = [];
     for (let el of logs) {
-      if (matches(el[0], searchTerm)) {
+      if (matches(el[0], searchTermLC)) {
         res.push(el);
       }
     }
@@ -78,13 +89,6 @@
     // node.scroll({ top: node.scrollHeight, behavior: "smooth" });
     node.scroll({ top: node.scrollHeight });
   }
-
-  afterUpdate(() => {
-    if (autoScrollPaused) {
-      return;
-    }
-    scrollToBottom(element);
-  });
 
   let windowTitle = "Logview " + version;
   // @ts-ignore
@@ -103,9 +107,10 @@
     return o ? o.length : 0;
   }
   function clearLogs() {
-    logs = [["Logview SumatraPDF", 1]];
-    filteredLogs = logs;
+    logs = [];
+    filteredLogs = [];
   }
+
   function aboutClicked() {
     let uri = "https://www.sumatrapdfreader.org/docs/Logview";
     // @ts-ignore
@@ -113,25 +118,28 @@
   }
   // @ts-ignore
   window.runtime.EventsOn("plog", plog);
+  run(() => {
+    filterLogs(searchTerm);
+  });
 </script>
 
 <svelte:window title={windowTitle} />
 <main>
   <div class="top">
-    <div style="flex-grow: 1" />
+    <div style="flex-grow: 1"></div>
     <input type="text" placeholder="search term..." bind:value={searchTerm} />
-    <button class="btn-pause" on:click={pauseClicked}>{btnText}</button>
-    <button on:click={clearLogs}>clear</button>
+    <button class="btn-pause" onclick={pauseClicked}>{btnText}</button>
+    <button onclick={clearLogs}>clear</button>
     <div>{len(logs)} line, {len(filteredLogs)} shown</div>
-    <div style="flex-grow: 1" />
-    <a on:click|preventDefault={aboutClicked} href="#">about</a>
+    <div style="flex-grow: 1"></div>
+    <button onclick={aboutClicked}>about</button>
   </div>
-  <div bind:this={element} class="log">
+  <div bind:this={logAreaEl} class="log-area">
     {#if len(filteredLogs) == 0}
       <div class="no-results">No results matching '<b>{searchTerm}</b>'</div>
     {:else}
       {#each filteredLogs as log (log[1])}
-        <span>{log[0]}</span><br />
+        <span class="log-line">{log[0]}</span><br />
       {/each}
     {/if}
   </div>
@@ -162,14 +170,16 @@
     column-gap: 0.5rem;
   }
 
-  .log {
+  .log-area {
     overflow: auto;
     margin-top: 0.5rem;
     /* background: rgb(239, 250, 254); */
     height: 100%;
     background-color: rgb(255, 255, 255);
   }
-  span {
+  .log-line {
     font-family: monospace;
+    content-visibility: auto;
+    /* contain-intrinsic-size: 1rem; */
   }
 </style>

@@ -8,7 +8,6 @@ Cmd* enum (e.g. CmdOpen) and a human-readable name (not used yet).
 */
 #define COMMANDS(V)                                                                \
     V(CmdOpenFile, "Open File...")                                                 \
-    V(CmdOpenFolder, "Open Folder...")                                             \
     V(CmdClose, "Close Document")                                                  \
     V(CmdCloseCurrentDocument, "Close Current Document")                           \
     V(CmdCloseOtherTabs, "Close Other Tabs")                                       \
@@ -172,7 +171,10 @@ Cmd* enum (e.g. CmdOpen) and a human-readable name (not used yet).
     V(CmdReopenLastClosedFile, "Reopen Last Closed")                               \
     V(CmdNextTab, "Next Tab")                                                      \
     V(CmdPrevTab, "Previous Tab")                                                  \
-    V(CmdSmartTabSwitch, "Smart Tab Switch")                                       \
+    V(CmdNextTabSmart, "Smart Next Tab")                                           \
+    V(CmdPrevTabSmart, "Smart Next Tab")                                           \
+    V(CmdMoveTabLeft, "Move Tab Left")                                             \
+    V(CmdMoveTabRight, "Move Tab Right")                                           \
     V(CmdSelectNextTheme, "Select next theme")                                     \
     V(CmdToggleFrequentlyRead, "Toggle Frequently Read")                           \
     V(CmdInvokeInverseSearch, "Invoke Inverse Search")                             \
@@ -186,6 +188,9 @@ Cmd* enum (e.g. CmdOpen) and a human-readable name (not used yet).
     V(CmdDebugTestApp, "Debug: Test App")                                          \
     V(CmdDebugShowNotif, "Debug: Show Notification")                               \
     V(CmdDebugStartStressTest, "Debug: Start Stress Test")                         \
+    V(CmdDebugTogglePredictiveRender, "Debug: Toggle Predictive Rendering")        \
+    V(CmdDebugToggleRtl, "Debug: Toggle Rtl")                                      \
+    V(CmdDebugDelayCloseWindow, "Debug: Delay Close Window")                       \
     V(CmdNone, "Do nothing")
 
 // order of CreateAnnot* must be the same as enum AnnotationType
@@ -306,6 +311,7 @@ CustomCommand* CreateCustomCommand(const char* definition, int origCmdId, Comman
 CustomCommand* FindCustomCommand(int cmdId);
 void FreeCustomCommands();
 CommandArg* NewStringArg(const char* name, const char* val);
+CommandArg* NewFloatArg(const char* name, float val);
 void InsertArg(CommandArg** firstPtr, CommandArg* arg);
 
 CustomCommand* CreateCommandFromDefinition(const char* definition);
@@ -327,3 +333,4 @@ constexpr const char* kCmdArgN = "n";
 constexpr const char* kCmdArgMode = "mode";
 constexpr const char* kCmdArgTheme = "theme";
 constexpr const char* kCmdArgCommandLine = "cmdline";
+constexpr const char* kCmdArgToolbarText = "toolbartext";

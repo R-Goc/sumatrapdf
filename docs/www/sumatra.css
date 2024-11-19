@@ -148,74 +148,6 @@ body {
   font-family: sans-serif;
 }
 
-.nav {
-  position: sticky;
-  top: 0;
-  display: flex;
-  flex-direction: row;
-  font-weight: 500;
-  align-items: center;
-  background-color: white;
-  z-index: 99; /* needs to be higher than img */
-
-  justify-content: space-between;
-  padding: 0.25rem 0;
-  margin-bottom: 1.5rem;
-}
-
-.nav-btn {
-  font-size: 18px;
-  padding: 8px 1rem;
-  margin-left: 1rem;
-  text-decoration: none;
-  color: black;
-  border-radius: 0.5rem;
-}
-
-.nav-manual {
-  position: fixed;
-  top: 0;
-  right: 0;
-  display: flex;
-  flex-direction: row;
-  font-weight: 500;
-  align-items: center;
-  background-color: white;
-  z-index: 99; /* needs to be higher than img */
-
-  padding: 0.25rem 0;
-}
-
-.nav-manual-top-space {
-  margin-top: 2rem;
-}
-
-.nav-btn-manual {
-  font-size: 14px;
-  padding: 2px 0.5rem;
-  margin-left: 0.5rem;
-  text-decoration: none;
-  color: black;
-  border-radius: 0.5rem;
-}
-
-.nav-btn-manual:hover {
-  background-color: rgba(255, 240, 0, 0.9);
-}
-
-.nav-logo {
-  margin-left: 1rem;
-  margin-top: 1px;
-}
-
-.nav-btn-selected {
-  background-color: rgba(255, 240, 0, 0.9);
-}
-
-.nav-btn:hover {
-  background-color: rgba(255, 240, 0, 0.9);
-}
-
 .page-wrap {
   margin-left: 1rem;
   margin-right: 1rem;
@@ -374,20 +306,6 @@ a.for-nav-icon:hover {
     visibility: collapse;
     display: none;
   }
-  .nav-logo {
-    visibility: collapse;
-    display: none;
-  }
-  .nav {
-    justify-content: center;
-    padding: 2px 0;
-    margin-bottom: 0.5rem;
-  }
-  .nav-btn {
-    font-size: 14px;
-    margin-left: 0px;
-    padding: 2px 4px;
-  }
 }
 
 .notion-page > div > img {
@@ -418,9 +336,117 @@ a.for-nav-icon:hover {
 
 a.hlink {
   text-decoration: none;
-  color: white;
+  color: transparent;
 }
 
 a.hlink:hover {
   color: lightgray;
+}
+
+/* table of contents */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  transition: background-color 1s ease;
+}
+
+.toc-wrapper {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background-color: #d3d3d3;
+    border-radius: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background-color: #fafafa;
+  }
+}
+
+.toc-mini {
+  display: flex;
+  flex-direction: column;
+  font-size: 6pt;
+  cursor: pointer;
+}
+
+.toc-list {
+  display: none;
+  flex-direction: column;
+  font-size: 10pt;
+  /* line-height: 1.4; */
+  background-color: white;
+  padding-left: 8px;
+  padding-right: 8px;
+
+  padding: 12px 12px;
+  /* margin-right: 10px; */
+  background-color: white;
+  box-shadow: rgba(15, 15, 15, 0.04) 0px 0px 0px 1px,
+    rgba(15, 15, 15, 0.03) 0px 3px 6px, rgba(15, 15, 15, 0.06) 0px 9px 24px;
+  border: 1px solid rgba(55, 53, 47, 0.26);
+  border-radius: 8px;
+}
+
+.toc-trunc {
+  max-width: 16ch;
+  min-width: 10ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toc-wrapper:hover > .toc-mini {
+  display: none;
+}
+
+.toc-wrapper:hover > .toc-list {
+  display: flex;
+}
+
+.toc-item {
+  cursor: pointer;
+  &:hover {
+    background-color: #f6f6f6;
+  }
+}
+
+.toc-bold {
+  font-weight: bold;
+}
+
+.toc-light {
+  color: lightgray;
+}
+
+.toc-ind-1 {
+  padding-left: 4px;
+}
+.toc-ind-2 {
+  padding-left: 8px;
+}
+.toc-ind-3 {
+  padding-left: 12px;
+}
+.toc-ind-4 {
+  padding-left: 16px;
+}
+.toc-ind-5 {
+  padding-left: 20px;
+}
+.toc-ind-6 {
+  padding-left: 24px;
 }

@@ -601,6 +601,20 @@ files {
 }
 
 function sumatrapdf_files()
+  files_in_dir(".", {
+    ".gitignore",
+    "*.yml",
+    ".github/*.yml",
+    ".github/workflows/*.yml",
+    "do/*.go",
+    "docs/*.txt",
+    "docs/*.html",
+    "docs/md/*.md",
+    "docs/www/*.css",
+    "premake5.lua",
+    "premake5.obsolete.lua",
+    "premake5.files.lua",
+  })
   files_in_dir("src", {
     "Accelerators.*",
     "Actions.*",
@@ -641,7 +655,6 @@ function sumatrapdf_files()
     "RegistryPreview.*",
     "RegistrySearchFilter.*",
     "resource.h",
-    "SaveAsPdf.*",
     "SearchAndDDE.*",
     "Selection.*",
     "Settings.h",
@@ -667,21 +680,12 @@ function sumatrapdf_files()
     "TranslationLangs.cpp",
     "UpdateCheck.*",
     "Version.h",
+    "VirtWnd.*",
     "Uninstaller.cpp",
-    "Widget.*",
     "WindowTab.*",
 
     "ext/versions.txt",
     "scratch.txt",
-    "../docs/*.txt",
-    "../docs/*.html",
-    "../docs/md/*.md",
-    "../premake5.lua",
-    "../premake5.obsolete.lua",
-    "../premake5.files.lua",
-    "../.gitignore",
-
-    "../do/*.go",
   })
   filter {"configurations:Debug or DebugFull"}
     files_in_dir("src", {
@@ -801,7 +805,6 @@ function engines_files()
     "EngineDjVu.*",
     "EngineEbook.*",
     "EngineImages.*",
-    "EngineMulti.*",
     "EngineMupdf.*",
     "EngineMupdfImpl.*",
     "EnginePs.*",
@@ -933,6 +936,7 @@ function mupdf_files()
     "skew.c",
     "separation.c",
     "shade.c",
+    "stext-boxer.c",
     "stext-device.c",
     "stext-output.c",
     "stext-search.c",
@@ -1018,6 +1022,7 @@ function mupdf_files()
     "pdf-page.c",
     "pdf-parse.c",
     "pdf-pattern.c",
+    "pdf-recolor.c",
     "pdf-repair.c",
     "pdf-resources.c",
     "pdf-run.c",

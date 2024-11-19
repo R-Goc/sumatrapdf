@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <Filter Include=".github">
+      <UniqueIdentifier>{9653A7D0-0233-266C-0B4B-B14277A98CCD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include=".github\workflows">
+      <UniqueIdentifier>{B3AE4BDD-1FC5-4973-683C-D594D4911AFB}</UniqueIdentifier>
+    </Filter>
     <Filter Include="do">
       <UniqueIdentifier>{98775900-8403-880B-EDB1-880BD95C880B}</UniqueIdentifier>
     </Filter>
@@ -9,6 +15,9 @@
     </Filter>
     <Filter Include="docs\md">
       <UniqueIdentifier>{6E56AB1F-DA35-2ABB-E34D-B5914FAC901C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="docs\www">
+      <UniqueIdentifier>{A2511615-8E1E-7120-B737-5FC8A363A6AE}</UniqueIdentifier>
     </Filter>
     <Filter Include="ext">
       <UniqueIdentifier>{7670880B-E279-887C-6BF5-9E7CD7FD937C}</UniqueIdentifier>
@@ -177,9 +186,6 @@
     <ClInclude Include="..\src\RenderCache.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\SaveAsPdf.h">
-      <Filter>src</Filter>
-    </ClInclude>
     <ClInclude Include="..\src\Scratch.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -235,9 +241,6 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\Version.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="..\src\Widget.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="..\src\WindowTab.h">
@@ -383,9 +386,6 @@
     <ClCompile Include="..\src\EngineImages.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\EngineMulti.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\EngineMupdf.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -461,9 +461,6 @@
     <ClCompile Include="..\src\RenderCache.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\SaveAsPdf.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="..\src\Scratch.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -531,9 +528,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\UpdateCheck.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="..\src\Widget.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\src\WindowTab.cpp">
@@ -658,7 +652,14 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\.github\workflows\build.yml">
+      <Filter>.github\workflows</Filter>
+    </None>
+    <None Include="..\.github\workflows\codeql.yml">
+      <Filter>.github\workflows</Filter>
+    </None>
     <None Include="..\.gitignore" />
+    <None Include="..\daily.yml" />
     <None Include="..\do\build.go">
       <Filter>do</Filter>
     </None>
@@ -731,9 +732,6 @@
     <None Include="..\docs\manual.tmpl.html">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\docs\manual.website.tmpl.html">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\docs\md\Accessibility-and-Text-to-Speech.md">
       <Filter>docs\md</Filter>
     </None>
@@ -771,6 +769,12 @@
       <Filter>docs\md</Filter>
     </None>
     <None Include="..\docs\md\Customize-search-translation-services.md">
+      <Filter>docs\md</Filter>
+    </None>
+    <None Include="..\docs\md\Customize-theme-colors.md">
+      <Filter>docs\md</Filter>
+    </None>
+    <None Include="..\docs\md\Customize-toolbar.md">
       <Filter>docs\md</Filter>
     </None>
     <None Include="..\docs\md\Customizing-eBook-UI.md">
@@ -859,6 +863,12 @@
     </None>
     <None Include="..\docs\wishlist.txt">
       <Filter>docs</Filter>
+    </None>
+    <None Include="..\docs\www\notion.css">
+      <Filter>docs\www</Filter>
+    </None>
+    <None Include="..\docs\www\sumatra.css">
+      <Filter>docs\www</Filter>
     </None>
     <None Include="..\premake5.files.lua" />
     <None Include="..\premake5.lua" />

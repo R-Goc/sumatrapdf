@@ -233,7 +233,7 @@ static LRESULT CALLBACK WndProcCaption(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp
                         }
                         SetTimer(hwnd, DO_NOT_REOPEN_MENU_TIMER_ID, DO_NOT_REOPEN_MENU_DELAY_IN_MS, nullptr);
                     }
-                    SetFocus(win->hwndFrame);
+                    HwndSetFocus(win->hwndFrame);
                 }
             }
             break;
@@ -940,7 +940,7 @@ static void MenuBarAsPopupMenu(MainWindow* win, int x, int y) {
         AppendMenuW(popup, MF_POPUP | MF_STRING, (UINT_PTR)mii.hSubMenu, subMenuName);
     }
 
-    if (IsUIRightToLeft()) {
+    if (IsUIRtl()) {
         x += ClientRect(win->caption->btn[CB_MENU].hwnd).dx;
     }
 

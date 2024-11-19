@@ -88,12 +88,17 @@ static void RemoveInstalledFiles() {
     logf("RemoveInstalledFiles(): removed dir '%s', ok = %d\n", dir, (int)ok);
 }
 
+static TempStr GetInstalledExePathTemp() {
+    TempStr dir = gCli->installDir;
+    return path::JoinTemp(dir, kExeName);
+}
+
 static void UninstallerThread() {
     log("UninstallerThread started\n");
     // also kill the original uninstaller, if it's just spawned
     // a DELETE_ON_CLOSE copy from the temp directory
     TempStr exePath = GetInstalledExePathTemp();
-    TempStr ownPath = GetExePathTemp();
+    TempStr ownPath = GetSelfExePathTemp();
     if (!path::IsSame(exePath, ownPath)) {
         KillProcessesWithModule(exePath, true);
     }
@@ -128,16 +133,16 @@ static void UninstallerThread() {
 }
 
 static void OnButtonUninstall() {
-    if (!CheckInstallUninstallPossible()) {
+    if (!CheckInstallUninstallPossible(gHwndFrame)) {
         return;
     }
 
     // disable the button during uninstallation
     gButtonUninstaller->SetIsEnabled(false);
     SetMsg(_TRA("Uninstallation in progress..."), COLOR_MSG_INSTALLATION);
-    HwndInvalidate(gHwndFrame);
+    HwndRepaintNow(gHwndFrame);
 
-    auto fn = MkFuncVoid(UninstallerThread);
+    auto fn = MkFunc0Void(UninstallerThread);
     hThread = StartThread(fn, "UninstallerThread");
 }
 
@@ -149,10 +154,10 @@ void OnUninstallationFinished() {
     delete gButtonUninstaller;
     gButtonUninstaller = nullptr;
     gButtonExit = CreateDefaultButton(gHwndFrame, _TRA("Close"));
-    gButtonExit->onClicked = MkFuncVoid(OnButtonExit);
+    gButtonExit->onClick = MkFunc0Void(OnButtonExit);
     SetMsg(_TRA("SumatraPDF has been uninstalled."), gMsgError ? COLOR_MSG_FAILED : COLOR_MSG_OK);
     gMsgError = gFirstError;
-    HwndInvalidate(gHwndFrame);
+    HwndRepaintNow(gHwndFrame);
 
     CloseHandle(hThread);
 }
@@ -186,7 +191,7 @@ static void CreateUninstallerWindow() {
     HwndResizeClientSize(gHwndFrame, dx, dy);
 
     gButtonUninstaller = CreateDefaultButton(gHwndFrame, _TRA("Uninstall SumatraPDF"));
-    gButtonUninstaller->onClicked = MkFuncVoid(OnButtonUninstall);
+    gButtonUninstaller->onClick = MkFunc0Void(OnButtonUninstall);
 }
 
 static void ShowUsage() {
@@ -314,7 +319,7 @@ static int RunApp() {
         // only before (un)installation starts.
         auto dur = TimeSinceInMs(t);
         if (dur > 10000 && gButtonUninstaller && gButtonUninstaller->IsEnabled()) {
-            CheckInstallUninstallPossible(true);
+            CheckInstallUninstallPossible(gHwndFrame, true);
             t = TimeGet();
         }
     }
@@ -339,7 +344,7 @@ static void RelaunchMaybeElevatedFromTempDirectory(Flags* cli) {
     }
 
     char* installerTempPath = GetUninstallerPathInTemp();
-    char* ownPath = GetExePathTemp();
+    char* ownPath = GetSelfExePathTemp();
     if (str::EqI(installerTempPath, ownPath)) {
         if (!gCli->allUsers) {
             log("  already running from temp dir\n");
@@ -405,7 +410,7 @@ static char* GetSelfDeleteBatchPathInTemp() {
 // we create a bash script that deletes us
 static void InitSelfDelete() {
     log("InitSelfDelete()\n");
-    TempStr exePath = GetExePathTemp();
+    TempStr exePath = GetSelfExePathTemp();
     str::Str script;
     // wait 2 seconds to give our process time to exit
     // alternatively use ping,
@@ -445,7 +450,7 @@ int RunUninstaller() {
     gCli->installDir = GetExistingInstallationDir();
     char* instDir = gCli->installDir;
     TempStr cmdLine = ToUtf8Temp(GetCommandLineW());
-    TempStr exePath = GetExePathTemp();
+    TempStr exePath = GetSelfExePathTemp();
     logf("Running uninstaller '%s' with args '%s' for '%s'\n", exePath, cmdLine, instDir);
 
     if (false) {

@@ -118,6 +118,17 @@ ParsedColor* GetParsedColor(const char* s, ParsedColor& parsed) {
     return &parsed;
 }
 
+COLORREF GetParsedCOLORREF(const char* s, ParsedColor& parsed, COLORREF def) {
+    if (parsed.wasParsed) {
+        return parsed.col;
+    }
+    ParseColor(parsed, s);
+    if (parsed.wasParsed) {
+        return parsed.col;
+    }
+    return def;
+}
+
 void SetFileStatePath(FileState* fs, const char* path) {
     if (fs->filePath && str::EqI(fs->filePath, path)) {
         return;
@@ -128,4 +139,8 @@ void SetFileStatePath(FileState* fs, const char* path) {
 void SetFileStatePath(FileState* fs, const WCHAR* path) {
     char* pathA = ToUtf8Temp(path);
     SetFileStatePath(fs, pathA);
+}
+
+Themes* ParseThemes(const char* data) {
+    return (Themes*)DeserializeStruct(&gThemesInfo, data);
 }

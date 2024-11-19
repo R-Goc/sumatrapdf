@@ -9,6 +9,8 @@
 #include "utils/ScopedWin.h"
 #include "utils/WinUtil.h"
 
+#include <wintrust.h>
+#include <softpub.h>
 #include <bitset>
 #include <intrin.h>
 #include <mlang.h>
@@ -459,9 +461,19 @@ bool WriteRegStr(HKEY hkey, const char* keyName, const char* valName, const char
 }
 
 bool LoggedWriteRegStr(HKEY hkey, const char* keyName, const char* valName, const char* value) {
-    auto res = WriteRegStr(hkey, keyName, valName, value);
-    logf("WriteRegStr(%s, %s, %s, %s) => '%d'\n", RegKeyNameWTemp(hkey), keyName, valName, value, res);
-    return res;
+    WCHAR* keyNameW = ToWStrTemp(keyName);
+    WCHAR* valNameW = ToWStrTemp(valName);
+    WCHAR* valueW = ToWStrTemp(value);
+
+    DWORD cbData = (DWORD)(str::Len(valueW) + 1) * sizeof(WCHAR);
+    LSTATUS res = SHSetValueW(hkey, keyNameW, valNameW, REG_SZ, (const void*)valueW, cbData);
+    if (res != ERROR_SUCCESS) {
+        logf("WriteRegStr(%s, %s, %s, %s) failed with '%d'\n", RegKeyNameWTemp(hkey), keyName, valName, value, res);
+        LogLastError();
+        return false;
+    }
+    logf("WriteRegStr(%s, %s, %s, %s) failed with '%d' ok!\n", RegKeyNameWTemp(hkey), keyName, valName, value);
+    return true;
 }
 
 bool ReadRegDWORD(HKEY hkey, const char* keyName, const char* valName, DWORD& value) {
@@ -479,10 +491,18 @@ bool WriteRegDWORD(HKEY hkey, const char* keyName, const char* valName, DWORD va
     return ERROR_SUCCESS == res;
 }
 
-bool LoggedWriteRegDWORD(HKEY hkey, const char* key, const char* valName, DWORD value) {
-    auto res = WriteRegDWORD(hkey, key, valName, value);
-    logf("WriteRegDWORD(%s, %s, %s, %d) => '%d'\n", RegKeyNameWTemp(hkey), key, valName, (int)value, res);
-    return res;
+bool LoggedWriteRegDWORD(HKEY hkey, const char* keyName, const char* valName, DWORD value) {
+    WCHAR* keyNameW = ToWStrTemp(keyName);
+    WCHAR* valNameW = ToWStrTemp(valName);
+    LSTATUS res = SHSetValueW(hkey, keyNameW, valNameW, REG_DWORD, (const void*)&value, sizeof(DWORD));
+    if (res != ERROR_SUCCESS) {
+        logf("WriteRegDWORD(%s, %s, %s, %d) failed with '%d'\n", RegKeyNameWTemp(hkey), keyName, valName, (int)value,
+             res);
+        LogLastError();
+        return false;
+    }
+    logf("WriteRegDWORD(%s, %s, %s, %d) => ok'\n", RegKeyNameWTemp(hkey), keyName, valName, (int)value);
+    return true;
 }
 
 bool LoggedWriteRegNone(HKEY hkey, const char* key, const char* valName) {
@@ -748,7 +768,7 @@ void HandleRedirectedConsoleOnShutdown() {
 }
 
 // Return the full exe path of my own executable
-TempStr GetExePathTemp() {
+TempStr GetSelfExePathTemp() {
     WCHAR buf[MAX_PATH]{};
     DWORD nSize = dimof(buf) - 1;
     auto h = GetInstance();
@@ -764,8 +784,8 @@ TempStr GetExePathTemp() {
 }
 
 // Return directory where our executable is located
-TempStr GetExeDirTemp() {
-    auto path = GetExePathTemp();
+TempStr GetSelfExeDirTemp() {
+    TempStr path = GetSelfExePathTemp();
     return path::GetDirTemp(path);
 }
 
@@ -1271,6 +1291,10 @@ bool IsCursorOverWindow(HWND hwnd) {
     return rcWnd.Contains({pt.x, pt.y});
 }
 
+HWND HwndGetParent(HWND hwnd) {
+    return ::GetParent(hwnd);
+}
+
 TempStr HwndGetClassName(HWND hwnd) {
     WCHAR buf[512] = {0};
     int n = GetClassNameW(hwnd, buf, dimof(buf));
@@ -1510,7 +1534,7 @@ static HFONT RememberCreatedFont(HFONT font, const char* name, int size, u16 fla
     cf->size = (u16)size;
     cf->flags = flags;
     cf->weightOffset = weightOffset;
-    ListInsert(&gFonts, cf);
+    ListInsertFront(&gFonts, cf);
     int n = ListLen(gFonts);
     name = name ? name : "";
     /* logf("RememberCreatedFont: added font '%s', size: %d, flags: %x, weightOffset: %d\n", name, size, (int)flags,
@@ -2335,6 +2359,10 @@ bool SafeCloseHandle(HANDLE* h) {
 // It'll always run the process, might fail to run non-elevated if fails to find explorer.exe
 // Also, if explorer.exe is running elevated, it'll probably run elevated as well.
 void RunNonElevated(const char* exePath) {
+    if (!file::Exists(exePath)) {
+        logf("RunNonElevated: file '%s' doesn't exist\n", exePath);
+        return;
+    }
     logf("RunNonElevated: '%s'\n", exePath);
     TempStr cmd = nullptr;
     char* explorerPath = nullptr;
@@ -2399,16 +2427,6 @@ void MessageBoxWarningSimple(HWND hwnd, const WCHAR* msg, const WCHAR* title) {
 
 void MessageBoxNYI(HWND hwnd) {
     MessageBoxWarningSimple(hwnd, L"Not Yet Implemented!", L"NYI");
-}
-
-void HwndScheduleRepaint(HWND hwnd) {
-    InvalidateRect(hwnd, nullptr, FALSE);
-}
-
-// do WM_PAINT immediately
-void RepaintNow(HWND hwnd) {
-    InvalidateRect(hwnd, nullptr, FALSE);
-    UpdateWindow(hwnd);
 }
 
 void VariantInitBstr(VARIANT& urlVar, const WCHAR* s) {
@@ -2727,8 +2745,17 @@ HICON HwndGetIcon(HWND hwnd) {
     return res;
 }
 
-void HwndInvalidate(HWND hwnd) {
-    if (!hwnd) {
+// schedule WM_PAINT at window's leasure
+void HwndScheduleRepaint(HWND hwnd) {
+    if (!hwnd || !::IsWindow(hwnd)) {
+        return;
+    }
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
+// do WM_PAINT immediately
+void HwndRepaintNow(HWND hwnd) {
+    if (!hwnd || !::IsWindow(hwnd)) {
         return;
     }
     InvalidateRect(hwnd, nullptr, FALSE);
@@ -2809,7 +2836,7 @@ void HwndDestroyWindowSafe(HWND* hwndPtr) {
 
 void TbSetButtonInfo(HWND hwnd, int buttonId, TBBUTTONINFO* info) {
     auto res = SendMessageW(hwnd, TB_SETBUTTONINFO, buttonId, (LPARAM)info);
-    ReportIf(0 == res);
+    ReportDebugIf(0 == res);
 }
 
 void TbGetPadding(HWND hwnd, int* padX, int* padY) {
@@ -2847,6 +2874,10 @@ bool DeleteObjectSafe(HGDIOBJ* h) {
     auto res = ::DeleteObject(*h);
     *h = nullptr;
     return ToBool(res);
+}
+
+bool DeleteBrushSafe(HBRUSH* br) {
+    return DeleteObjectSafe((HGDIOBJ*)br);
 }
 
 bool DestroyIconSafe(HICON* h) {
@@ -2924,13 +2955,16 @@ Size HdcMeasureText(HDC hdc, const char* s, HFONT font) {
 
 void DrawCenteredText(HDC hdc, const Rect r, const char* txt, bool isRTL) {
     TempWStr ws = ToWStrTemp(txt);
-    SetBkMode(hdc, TRANSPARENT);
+    int prevMode = SetBkMode(hdc, TRANSPARENT);
     RECT tmpRect = ToRECT(r);
     uint format = DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX;
     if (isRTL) {
         format |= DT_RTLREADING;
     }
     DrawTextW(hdc, ws, -1, &tmpRect, format);
+    if (prevMode != 0) {
+        SetBkMode(hdc, prevMode);
+    }
 }
 
 /* Return size of a text <txt> in a given <hwnd>, taking into account its font */
@@ -2947,6 +2981,8 @@ static Size HwndMeasureText(HWND hwnd, const WCHAR* txt, HFONT font) {
     ScopedSelectFont prev(dc, font);
 
     RECT r{};
+    // TODO: DT_EDITCONTROL is probably not correct here
+    // TODO: what about DT_NOPREFIX?
     uint fmt = DT_CALCRECT | DT_LEFT | DT_NOCLIP | DT_EDITCONTROL;
     size_t txtLen = str::Len(txt);
     DrawTextExW(dc, (WCHAR*)txt, (int)txtLen, &r, fmt, nullptr);
@@ -2965,6 +3001,7 @@ Size HwndMeasureText(HWND hwnd, const char* txt, HFONT font) {
     return HwndMeasureText(hwnd, sw, font);
 }
 
+// return approximate height of font in pixels
 int FontDyPx(HWND hwnd, HFONT hfont) {
     Size s = HwndMeasureText(hwnd, "A", hfont);
     return s.dy;
@@ -3114,4 +3151,37 @@ double TimeDiffMs(const LARGE_INTEGER& start, const LARGE_INTEGER& end) {
     auto diff = end.QuadPart - start.QuadPart;
     double res = (double)(diff) / (double)(freq.QuadPart);
     return res * 1000;
+}
+
+bool IsPEFileSigned(const char* filePath) {
+    TempWStr ws = ToWStrTemp(filePath);
+    WINTRUST_FILE_INFO fileInfo = {0};
+    fileInfo.cbStruct = sizeof(WINTRUST_FILE_INFO);
+    fileInfo.pcwszFilePath = ws;
+    fileInfo.hFile = NULL;
+    fileInfo.pgKnownSubject = NULL;
+
+    GUID actionGUID = WINTRUST_ACTION_GENERIC_VERIFY_V2;
+    WINTRUST_DATA trustData = {0};
+
+    trustData.cbStruct = sizeof(WINTRUST_DATA);
+    trustData.pPolicyCallbackData = NULL;
+    trustData.pSIPClientData = NULL;
+    trustData.dwUIChoice = WTD_UI_NONE;
+    trustData.fdwRevocationChecks = WTD_REVOKE_NONE;
+    trustData.dwUnionChoice = WTD_CHOICE_FILE;
+    trustData.dwStateAction = WTD_STATEACTION_IGNORE;
+    trustData.hWVTStateData = NULL;
+    trustData.pwszURLReference = NULL;
+    trustData.dwProvFlags = WTD_SAFER_FLAG;
+    trustData.dwUIContext = 0;
+    trustData.pFile = &fileInfo;
+
+    LONG status = WinVerifyTrust(NULL, &actionGUID, &trustData);
+
+    if (status == ERROR_SUCCESS) {
+        return true; // File is signed and signature is valid
+    } else {
+        return false; // File is not signed or signature is not valid
+    }
 }

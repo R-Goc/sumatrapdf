@@ -1,26 +1,32 @@
 package main
 
 import (
+	"archive/zip"
+	"bufio"
+	"bytes"
 	"flag"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/andybalholm/brotli"
 	"github.com/kjk/common/u"
+	"github.com/klauspost/compress/zstd"
+	"github.com/ulikunitz/xz/lzma"
 )
 
 var (
-	flgSkipSign       bool
 	r2Access          string
 	r2Secret          string
 	b2Access          string
 	b2Secret          string
 	transUploadSecret string
-	certPwd           string
 )
 
 func loadSecrets() bool {
@@ -49,7 +55,6 @@ func loadSecrets() bool {
 	getEnv("BB_ACCESS", &b2Access, 8)
 	getEnv("BB_SECRET", &b2Secret, 8)
 	getEnv("TRANS_UPLOAD_SECRET", &transUploadSecret, 4)
-	getEnv("CERT_PWD", &certPwd, 4)
 	return true
 }
 
@@ -69,7 +74,6 @@ func getSecrets() {
 	b2Access = os.Getenv("BB_ACCESS")
 	b2Secret = os.Getenv("BB_SECRET")
 	transUploadSecret = os.Getenv("TRANS_UPLOAD_SECRET")
-	certPwd = os.Getenv("CERT_PWD")
 }
 
 func regenPremake() {
@@ -164,7 +168,7 @@ func runCppCheck(all bool) {
 		args = append(args, "--suppress=CastIntegerToAddressAtReturn")
 		args = append(args, "--suppress=uselessOverride") // false positive
 	}
-	args = append(args, "--inline-suppr", "-I", "src", "-I", "src/utils", "src")
+	args = append(args, "--check-level=exhaustive", "--inline-suppr", "-I", "src", "-I", "src/utils", "src")
 	cppcheckExe := detectCppcheckExe()
 	cmd = exec.Command(cppcheckExe, args...)
 	os.Remove(cppcheckLogFile)
@@ -174,7 +178,6 @@ func runCppCheck(all bool) {
 }
 
 type BuildOptions struct {
-	sign                      bool
 	upload                    bool
 	verifyTranslationUpToDate bool
 	doCleanCheck              bool
@@ -183,16 +186,12 @@ type BuildOptions struct {
 
 func ensureBuildOptionsPreRequesites(opts *BuildOptions) {
 	logf("upload: %v\n", opts.upload)
-	logf("sign: %v\n", opts.sign)
 	logf("verifyTranslationUpToDate: %v\n", opts.verifyTranslationUpToDate)
 
 	if opts.upload {
 		ensureAllUploadCreds()
 	}
 
-	if opts.sign {
-		panicIf(!hasCertPwd(), "CERT_PWD env variable is not set")
-	}
 	if opts.verifyTranslationUpToDate {
 		verifyTranslationsMust()
 	}
@@ -202,10 +201,6 @@ func ensureBuildOptionsPreRequesites(opts *BuildOptions) {
 	if opts.releaseBuild {
 		verifyOnReleaseBranchMust()
 		os.RemoveAll("out")
-	}
-
-	if !opts.sign {
-		flgSkipSign = true
 	}
 }
 
@@ -234,13 +229,13 @@ func main() {
 		flgBuildPreRelease bool
 		flgBuildRelease    bool
 		flgBuildSmoke      bool
+		flgBuildCodeQL     bool
 		flgCheckAccessKeys bool
 		flgCIBuild         bool
 		flgCIDailyBuild    bool
 		flgClangFormat     bool
 		flgClean           bool
 		flgDiff            bool
-		flgDrMem           bool
 		flgExtractUtils    bool
 		flgFilesList       bool
 		flgFileUpload      string
@@ -255,7 +250,6 @@ func main() {
 		flgUpdateGoDeps    bool
 		flgUpdateVer       string
 		flgUpload          bool
-		flgUploadCiBuild   bool
 		flgWc              bool
 	)
 
@@ -265,10 +259,10 @@ func main() {
 		flag.BoolVar(&flgRegenPremake, "premake", false, "regenerate premake*.lua files")
 		flag.BoolVar(&flgCIBuild, "ci", false, "run CI steps")
 		flag.BoolVar(&flgCIDailyBuild, "ci-daily", false, "run CI daily steps")
-		flag.BoolVar(&flgUploadCiBuild, "ci-upload", false, "upload the result of ci build to s3 and do spaces")
 		flag.BoolVar(&flgBuildSmoke, "build-smoke", false, "run smoke build (installer for 64bit release)")
 		flag.BoolVar(&flgBuildPreRelease, "build-pre-rel", false, "build pre-release")
 		flag.BoolVar(&flgBuildRelease, "build-release", false, "build release")
+		flag.BoolVar(&flgBuildCodeQL, "build-codeql", false, "build for codeql")
 		//flag.BoolVar(&flgBuildLzsa, "build-lzsa", false, "build MakeLZSA.exe")
 		flag.BoolVar(&flgUpload, "upload", false, "upload the build to s3 and do spaces")
 		flag.BoolVar(&flgClangFormat, "format", false, "format source files with clang-format")
@@ -286,7 +280,6 @@ func main() {
 		flag.BoolVar(&flgDiff, "diff", false, "preview diff using winmerge")
 		flag.BoolVar(&flgGenSettings, "gen-settings", false, "re-generate src/Settings.h")
 		flag.StringVar(&flgUpdateVer, "update-auto-update-ver", "", "update version used for auto-update checks")
-		flag.BoolVar(&flgDrMem, "drmem", false, "run drmemory of rel 64")
 		flag.BoolVar(&flgLogView, "logview", false, "run logview")
 		flag.BoolVar(&flgRunTests, "run-tests", false, "run test_util executable")
 		flag.BoolVar(&flgExtractUtils, "extract-utils", false, "extract utils")
@@ -294,7 +287,7 @@ func main() {
 		flag.IntVar(&flgBuildNo, "build-no-info", 0, "print build number info for given build number")
 		flag.BoolVar(&flgUpdateGoDeps, "update-go-deps", false, "update go dependencies")
 		flag.BoolVar(&flgGenDocs, "gen-docs", false, "generate html docs in docs/www from markdown in docs/md")
-		flag.BoolVar(&flgGenWebsiteDocs, "gen-website-docs", false, "generate html docs in ../sumatra-website repo and check them in")
+		flag.BoolVar(&flgGenWebsiteDocs, "gen-docs-website", false, "generate html docs in ../sumatra-website repo and check them in")
 		flag.Parse()
 	}
 
@@ -323,26 +316,68 @@ func main() {
 		defer measureDuration()()
 		u.UpdateGoDeps("do", true)
 		u.UpdateGoDeps(filepath.Join("tools", "regress"), true)
+		u.UpdateGoDeps(filepath.Join("tools", "logview-cli"), true)
 		u.UpdateGoDeps(filepath.Join("tools", "logview"), true)
-		u.UpdateGoDeps(filepath.Join("tools", "logview-win"), true)
+		return
+	}
+
+	if flgClangFormat {
+		clangFormatFiles()
+		return
+	}
+
+	if flgCppCheck || flgCppCheckAll {
+		runCppCheck(flgCppCheckAll)
+		return
+	}
+
+	if flgClangTidy || flgClangTidyFix {
+		runClangTidy(flgClangTidyFix)
+		return
+	}
+
+	if flgRegenPremake {
+		regenPremake()
+		return
+	}
+
+	if flgCheckAccessKeys {
+		checkAccessKeys()
+		return
+	}
+
+	if flgGenTranslationsInfoCpp {
+		genTranslationInfoCpp()
+		return
+	}
+
+	if flgBuildLzsa {
+		buildLzsa()
+		return
+	}
+
+	if flgBuildCodeQL {
+		buildCodeQL()
 		return
 	}
 
 	getSecrets()
+
+	if flgTransDownload {
+		downloadTranslations()
+		return
+	}
+
 	detectVersions()
 
 	if false {
-		testGenUpdateTxt()
-		return
-	}
-
-	if false {
-		//buildPreRelease()
-		return
-	}
-
-	if false {
-		deleteFilesOneOff()
+		testCompressOneOff()
+		if false {
+			// make them reachable
+			testGenUpdateTxt()
+			buildPreRelease(kPlatformIntel64, true)
+			deleteFilesOneOff()
+		}
 		return
 	}
 
@@ -375,23 +410,9 @@ func main() {
 	}
 
 	opts := &BuildOptions{}
-	if flgUploadCiBuild {
-		// triggered via -ci-upload from .github workflow file
-		// only upload if this is my repo (not a fork)
-		// master branch (not work branches) and on push (not pull requests etc.)
-		opts.upload = isGithubMyMasterBranch()
-	}
-
-	if flgCIBuild {
-		// triggered via -ci from .github workflow file
-		// only sign if this is my repo (not a fork)
-		// master branch (not work branches) and on push (not pull requests etc.)
-		opts.sign = isGithubMyMasterBranch()
-	}
 
 	if flgUpload {
 		// given by me from cmd-line
-		opts.sign = true
 		opts.upload = true
 	}
 
@@ -430,46 +451,6 @@ func main() {
 		return
 	}
 
-	if flgClangFormat {
-		clangFormatFiles()
-		return
-	}
-
-	if flgCppCheck || flgCppCheckAll {
-		runCppCheck(flgCppCheckAll)
-		return
-	}
-
-	if flgClangTidy || flgClangTidyFix {
-		runClangTidy(flgClangTidyFix)
-		return
-	}
-
-	if flgRegenPremake {
-		regenPremake()
-		return
-	}
-
-	if flgCheckAccessKeys {
-		checkAccessKeys()
-		return
-	}
-
-	if flgTransDownload {
-		downloadTranslations()
-		return
-	}
-
-	if flgGenTranslationsInfoCpp {
-		genTranslationInfoCpp()
-		return
-	}
-
-	if flgBuildLzsa {
-		buildLzsa()
-		return
-	}
-
 	if flgBuildSmoke {
 		buildSmoke()
 		return
@@ -480,19 +461,7 @@ func main() {
 	}
 
 	if flgCIDailyBuild {
-		buildCiDaily(opts)
-		if opts.upload {
-			uploadToStorage(buildTypePreRel)
-		} else {
-			logf("uploadToStorage: skipping because opts.upload = false\n")
-		}
-		return
-	}
-
-	// on GitHub Actions the build happens in an earlier step
-	if flgUploadCiBuild {
-		// pre-release build on push
-		uploadToStorage(buildTypePreRel)
+		buildCiDaily()
 		return
 	}
 
@@ -536,14 +505,6 @@ func main() {
 		return
 	}
 
-	if flgDrMem {
-		buildJustPortableExe(rel64Dir, "Release", kPlatformIntel64)
-		//cmd := exec.Command("drmemory.exe", "-light", "-check_leaks", "-possible_leaks", "-count_leaks", "-suppress", "drmem-sup.txt", "--", ".\\out\\rel64\\SumatraPDF.exe")
-		cmd := exec.Command("drmemory.exe", "-leaks_only", "-suppress", "drmem-sup.txt", "--", ".\\out\\rel64\\SumatraPDF.exe")
-		runCmdLoggedMust(cmd)
-		return
-	}
-
 	if flgLogView {
 		logView()
 		return
@@ -582,7 +543,7 @@ func cmdRunLoggedInDir(dir string, args ...string) {
 	cmdRunLoggedMust(cmd)
 }
 
-var logViewWinDir = filepath.Join("tools", "logview-win")
+var logViewWinDir = filepath.Join("tools", "logview")
 
 func buildLogView() {
 	ver := extractLogViewVersion()
@@ -593,7 +554,7 @@ func buildLogView() {
 
 	path := filepath.Join(logViewWinDir, "build", "bin", "logview.exe")
 	panicIf(!u.FileExists(path))
-	signMust(path)
+	// signMust(path)
 	logf("\n")
 	printFileSize(path)
 }
@@ -637,4 +598,142 @@ func printBuildNoInfo(buildNo int) {
 	n := len(lines) - (buildNo - 1000)
 	s := lines[n]
 	logf("%d: %s\n", buildNo, s)
+}
+
+func compressFileWithBrMust(path string) []byte {
+	buf := bytes.Buffer{}
+	w := brotli.NewWriterLevel(&buf, brotli.BestCompression)
+	f := u.Must2(os.Open(path))
+	u.Must2(io.Copy(w, f))
+	must(f.Close())
+	must(w.Close())
+	return buf.Bytes()
+}
+
+func compressWithZstdMust(path string) []byte {
+	buf := bytes.Buffer{}
+	w := u.Must2(zstd.NewWriter(&buf, zstd.WithEncoderLevel(zstd.SpeedBestCompression)))
+	f := u.Must2(os.Open(path))
+	u.Must2(io.Copy(w, f))
+	must(f.Close())
+	must(w.Close())
+	return buf.Bytes()
+}
+
+func compressWithLzma2Must(path string) []byte {
+	buf := bytes.Buffer{}
+	bw := bufio.NewWriter(&buf)
+	w := u.Must2(lzma.NewWriter2(bw))
+	f := u.Must2(os.Open(path))
+	u.Must2(io.Copy(w, f))
+	must(f.Close())
+	must(w.Close())
+	must(bw.Flush())
+	return buf.Bytes()
+}
+
+func compressWithLzma2BetterMust(path string) []byte {
+	buf := bytes.Buffer{}
+	bw := bufio.NewWriter(&buf)
+	var c lzma.Writer2Config
+	c.DictCap = (8 * 1024 * 1024) * 16
+	must(c.Verify())
+	w := u.Must2(c.NewWriter2(bw))
+	f := u.Must2(os.Open(path))
+	u.Must2(io.Copy(w, f))
+	must(f.Close())
+	must(w.Close())
+	must(bw.Flush())
+	return buf.Bytes()
+}
+
+func creaZipWithCompressFunction(zipPath string, files []string, dir string, compressFunc func(string) []byte, comprSuffix string) {
+	os.Remove(zipPath)
+	w := u.Must2(os.Create(zipPath))
+	zw := zip.NewWriter(w)
+	defer zw.Close()
+	var wg sync.WaitGroup
+	nConcurrent := runtime.NumCPU()
+	sem := make(chan bool, nConcurrent)
+	for _, f := range files {
+		path := filepath.Join(dir, f)
+		wg.Add(1)
+		sem <- true
+		go func() {
+			data := compressFunc(path)
+			addZipDataStoreMust(zw, data, f+comprSuffix)
+			<-sem
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	must(zw.Close())
+}
+
+func testCompressOneOff() {
+	dir := filepath.Join("out", "rel64")
+	files := []string{"SumatraPDF.exe", "SumatraPDF-dll.exe", "libmupdf.pdb", "SumatraPDF.pdb", "SumatraPDF-dll.pdb"}
+	{
+	}
+	origSize := int64(0)
+	for _, f := range files {
+		origSize += u.FileSize(filepath.Join(dir, f))
+	}
+	logf("origSize: %s\n", u.FormatSize(origSize))
+
+	{
+		archivePath := filepath.Join(dir, "rel64.lzma2.better.zip")
+		os.Remove(archivePath)
+		logf("\nCreating %s (%d threads)\n", archivePath, runtime.NumCPU())
+		printDur := measureDuration()
+		creaZipWithCompressFunction(archivePath, files, dir, compressWithLzma2BetterMust, ".lzma2")
+		printDur()
+		compressedSize := u.FileSize(archivePath)
+		ratio := float64(origSize) / float64(compressedSize)
+		logf("compressedSize: %s, ratio: %.2f\n", u.FormatSize(compressedSize), ratio)
+	}
+	{
+		archivePath := filepath.Join(dir, "rel64.lzma2.zip")
+		os.Remove(archivePath)
+		logf("\nCreating %s (%d threads)\n", archivePath, runtime.NumCPU())
+		printDur := measureDuration()
+		creaZipWithCompressFunction(archivePath, files, dir, compressWithLzma2Must, ".lzma2")
+		printDur()
+		compressedSize := u.FileSize(archivePath)
+		ratio := float64(origSize) / float64(compressedSize)
+		logf("compressedSize: %s, ratio: %.2f\n", u.FormatSize(compressedSize), ratio)
+	}
+	{
+		archivePath := filepath.Join(dir, "rel64.br.zip")
+		os.Remove(archivePath)
+		logf("\nCreating %s (%d threads)\n", archivePath, runtime.NumCPU())
+		printDur := measureDuration()
+		creaZipWithCompressFunction(archivePath, files, dir, compressFileWithBrMust, ".br")
+		printDur()
+		compressedSize := u.FileSize(archivePath)
+		ratio := float64(origSize) / float64(compressedSize)
+		logf("compressedSize: %s, ratio: %.2f\n", u.FormatSize(compressedSize), ratio)
+	}
+	{
+		archivePath := filepath.Join(dir, "rel64.zstd.zip")
+		os.Remove(archivePath)
+		logf("\nCreating %s (%d threads)\n", archivePath, runtime.NumCPU())
+		printDur := measureDuration()
+		creaZipWithCompressFunction(archivePath, files, dir, compressWithZstdMust, ".zstd")
+		printDur()
+		compressedSize := u.FileSize(archivePath)
+		ratio := float64(origSize) / float64(compressedSize)
+		logf("compressedSize: %s, ratio: %.2f\n", u.FormatSize(compressedSize), ratio)
+	}
+	{
+		logf("\nCreating rel64.lzsa using\n")
+		printDur := measureDuration()
+		archivePath := filepath.Join(dir, "rel64.lzsa")
+		os.Remove(archivePath)
+		createLzsaFromFiles("rel64.lzsa", files, dir)
+		printDur()
+		compressedSize := u.FileSize(archivePath)
+		ratio := float64(origSize) / float64(compressedSize)
+		logf("compressedSize: %s, ratio: %.2f\n", u.FormatSize(compressedSize), ratio)
+	}
 }

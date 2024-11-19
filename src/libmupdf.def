@@ -71,7 +71,7 @@ EXPORTS
 	pdf_xobject_resources
 	pdf_page_resources
 	xps_drop_part
-	pdf_install_load_system_font_funcs
+	install_load_windows_font_funcs
 	pdf_page_transform
 	pdf_page_obj_transform
 	fz_close_device
@@ -114,7 +114,6 @@ EXPORTS
 	pdf_is_embedded_file
 	fz_new_image_from_svg
 	destroy_system_font_list
-	drop_cached_fonts_for_ctx
 	pdf_doc_was_linearized
 	pdf_load_page_tree
 	pdf_annot_ap

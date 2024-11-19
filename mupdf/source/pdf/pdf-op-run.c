@@ -91,6 +91,7 @@ struct pdf_gstate
 	pdf_obj *softmask_resources;
 	pdf_obj *softmask_tr;
 	fz_matrix softmask_ctm;
+	fz_colorspace *softmask_cs;
 	float softmask_bc[FZ_MAX_COLORS];
 	int luminosity;
 };
@@ -157,6 +158,10 @@ struct pdf_run_processor
 	/* Pending begin layers */
 	begin_layer_stack *begin_layer;
 	begin_layer_stack **next_begin_layer;
+
+	int mc_depth;
+	int nest_depth;
+	int nest_mark[1024];
 };
 
 /* Forward definition */
@@ -189,6 +194,12 @@ flush_begin_layer(fz_context *ctx, pdf_run_processor *proc)
 	while (proc->begin_layer)
 	{
 		s = proc->begin_layer;
+
+		if (proc->nest_depth == nelem(proc->nest_mark))
+			fz_throw(ctx, FZ_ERROR_LIMIT, "layer/clip nesting too deep");
+
+		proc->nest_mark[proc->nest_depth++] = ++proc->mc_depth;
+
 		fz_begin_layer(ctx, proc->dev, s->layer);
 		proc->begin_layer = s->next;
 		fz_free(ctx, s->layer);
@@ -197,9 +208,39 @@ flush_begin_layer(fz_context *ctx, pdf_run_processor *proc)
 	proc->next_begin_layer = &proc->begin_layer;
 }
 
+#define CLIP_MARK -1
+
+static void nest_layer_clip(fz_context *ctx, pdf_run_processor *proc)
+{
+	if (proc->nest_depth == nelem(proc->nest_mark))
+		fz_throw(ctx, FZ_ERROR_LIMIT, "layer/clip nesting too deep");
+	proc->nest_mark[proc->nest_depth++] = CLIP_MARK;
+}
+
+static void
+do_end_layer(fz_context *ctx, pdf_run_processor *proc)
+{
+	if (proc->nest_depth > 0 && proc->nest_mark[proc->nest_depth-1] == proc->mc_depth)
+	{
+		fz_end_layer(ctx, proc->dev);
+		proc->nest_depth--;
+	}
+	else
+	{
+		/* If EMC is unbalanced with q/Q, we will emit the end layer
+		 * device call before or after the Q operator instead of its true location
+		 */
+		 fz_warn(ctx, "invalid marked content and clip nesting");
+	}
+
+	if (proc->mc_depth > 0)
+		proc->mc_depth--;
+}
+
 typedef struct
 {
 	pdf_obj *softmask;
+	fz_colorspace *softmask_cs;
 	pdf_obj *page_resources;
 	fz_matrix ctm;
 } softmask_save;
@@ -218,6 +259,7 @@ begin_softmask(fz_context *ctx, pdf_run_processor *pr, softmask_save *save)
 {
 	pdf_gstate *gstate = pr->gstate + pr->gtop;
 	pdf_obj *softmask = gstate->softmask;
+	fz_colorspace *softmask_cs = gstate->softmask_cs;
 	fz_rect mask_bbox;
 	fz_matrix tos_save[2], save_ctm;
 	fz_matrix mask_matrix;
@@ -230,6 +272,7 @@ begin_softmask(fz_context *ctx, pdf_run_processor *pr, softmask_save *save)
 	save->softmask = softmask;
 	if (softmask == NULL)
 		return gstate;
+	save->softmask_cs = softmask_cs;
 	save->page_resources = gstate->softmask_resources;
 	save->ctm = gstate->softmask_ctm;
 	save_ctm = gstate->ctm;
@@ -239,6 +282,10 @@ begin_softmask(fz_context *ctx, pdf_run_processor *pr, softmask_save *save)
 
 	pdf_tos_save(ctx, &pr->tos, tos_save);
 
+	mask_colorspace = gstate->softmask_cs;
+	if (gstate->luminosity && !mask_colorspace)
+		mask_colorspace = fz_device_gray(ctx);
+
 	if (gstate->luminosity)
 		mask_bbox = fz_infinite_rect;
 	else
@@ -247,14 +294,11 @@ begin_softmask(fz_context *ctx, pdf_run_processor *pr, softmask_save *save)
 		mask_bbox = fz_transform_rect(mask_bbox, gstate->softmask_ctm);
 	}
 	gstate->softmask = NULL;
+	gstate->softmask_cs = NULL;
 	gstate->softmask_resources = NULL;
 	gstate->ctm = gstate->softmask_ctm;
 
 	saved_blendmode = gstate->blendmode;
-
-	mask_colorspace = pdf_xobject_colorspace(ctx, softmask);
-	if (gstate->luminosity && !mask_colorspace)
-		mask_colorspace = fz_keep_colorspace(ctx, fz_device_gray(ctx));
 
 	fz_try(ctx)
 	{
@@ -275,7 +319,6 @@ begin_softmask(fz_context *ctx, pdf_run_processor *pr, softmask_save *save)
 	fz_always(ctx)
 	{
 		fz_drop_function(ctx, tr);
-		fz_drop_colorspace(ctx, mask_colorspace);
 	}
 	fz_catch(ctx)
 		fz_rethrow(ctx);
@@ -297,6 +340,7 @@ end_softmask(fz_context *ctx, pdf_run_processor *pr, softmask_save *save)
 		return;
 
 	gstate->softmask = save->softmask;
+	gstate->softmask_cs = save->softmask_cs;
 	gstate->softmask_resources = save->page_resources;
 	gstate->softmask_ctm = save->ctm;
 	save->softmask = NULL;
@@ -352,6 +396,7 @@ pdf_show_shade(fz_context *ctx, pdf_run_processor *pr, fz_shade *shd)
 	fz_catch(ctx)
 	{
 		pdf_drop_obj(ctx, softmask.softmask);
+		fz_drop_colorspace(ctx, softmask.softmask_cs);
 		pdf_drop_obj(ctx, softmask.page_resources);
 		fz_rethrow(ctx);
 	}
@@ -392,6 +437,12 @@ pdf_copy_pattern_gstate(fz_context *ctx, pdf_gstate *dst, const pdf_gstate *src)
 	pdf_drop_obj(ctx, dst->softmask);
 	dst->softmask = pdf_keep_obj(ctx, src->softmask);
 
+	pdf_drop_obj(ctx, dst->softmask_resources);
+	dst->softmask_resources = pdf_keep_obj(ctx, src->softmask_resources);
+
+	fz_drop_colorspace(ctx, dst->softmask_cs);
+	dst->softmask_cs = fz_keep_colorspace(ctx, src->softmask_cs);
+
 	fz_drop_stroke_state(ctx, dst->stroke_state);
 	dst->stroke_state = fz_keep_stroke_state(ctx, src->stroke_state);
 }
@@ -419,6 +470,8 @@ pdf_keep_gstate(fz_context *ctx, pdf_gstate *gs)
 		pdf_keep_font(ctx, gs->text.font);
 	if (gs->softmask)
 		pdf_keep_obj(ctx, gs->softmask);
+	if (gs->softmask_cs)
+		fz_keep_colorspace(ctx, gs->softmask_cs);
 	if (gs->softmask_resources)
 		pdf_keep_obj(ctx, gs->softmask_resources);
 	fz_keep_stroke_state(ctx, gs->stroke_state);
@@ -432,6 +485,7 @@ pdf_drop_gstate(fz_context *ctx, pdf_gstate *gs)
 	pdf_drop_material(ctx, &gs->fill);
 	pdf_drop_font(ctx, gs->text.font);
 	pdf_drop_obj(ctx, gs->softmask);
+	fz_drop_colorspace(ctx, gs->softmask_cs);
 	pdf_drop_obj(ctx, gs->softmask_resources);
 	fz_drop_stroke_state(ctx, gs->stroke_state);
 	pdf_drop_obj(ctx, gs->softmask_tr);
@@ -475,7 +529,22 @@ pdf_grestore(fz_context *ctx, pdf_run_processor *pr)
 	{
 		fz_try(ctx)
 		{
+			// End layer early (before Q) if unbalanced Q appears between BMC and EMC.
+			while (pr->nest_depth > 0 && pr->nest_mark[pr->nest_depth-1] != CLIP_MARK)
+			{
+				fz_end_layer(ctx, pr->dev);
+				pr->nest_depth--;
+			}
+
 			fz_pop_clip(ctx, pr->dev);
+			pr->nest_depth--;
+
+			// End layer late (after Q) if unbalanced EMC appears between q and Q.
+			while (pr->nest_depth > 0 && pr->nest_mark[pr->nest_depth-1] > pr->mc_depth)
+			{
+				fz_end_layer(ctx, pr->dev);
+				pr->nest_depth--;
+			}
 		}
 		fz_catch(ctx)
 		{
@@ -728,6 +797,7 @@ pdf_show_image(fz_context *ctx, pdf_run_processor *pr, fz_image *image)
 		fz_catch(ctx)
 		{
 			pdf_drop_obj(ctx, softmask.softmask);
+			fz_drop_colorspace(ctx, softmask.softmask_cs);
 			pdf_drop_obj(ctx, softmask.page_resources);
 			fz_rethrow(ctx);
 		}
@@ -860,6 +930,7 @@ pdf_show_path(fz_context *ctx, pdf_run_processor *pr, int doclose, int dofill, i
 
 		if (pr->clip)
 		{
+			nest_layer_clip(ctx, pr);
 			gstate->clip_depth++;
 			fz_clip_path(ctx, pr->dev, path, pr->clip_even_odd, gstate->ctm, bbox);
 			pr->clip = 0;
@@ -872,6 +943,7 @@ pdf_show_path(fz_context *ctx, pdf_run_processor *pr, int doclose, int dofill, i
 	fz_catch(ctx)
 	{
 		pdf_drop_obj(ctx, softmask.softmask);
+		fz_drop_colorspace(ctx, softmask.softmask_cs);
 		pdf_drop_obj(ctx, softmask.page_resources);
 		fz_rethrow(ctx);
 	}
@@ -1018,6 +1090,7 @@ pdf_flush_text(fz_context *ctx, pdf_run_processor *pr)
 
 		if (doclip)
 		{
+			nest_layer_clip(ctx, pr);
 			gstate->clip_depth++;
 			fz_clip_text(ctx, pr->dev, text, gstate->ctm, tb);
 		}
@@ -1029,6 +1102,7 @@ pdf_flush_text(fz_context *ctx, pdf_run_processor *pr)
 	fz_catch(ctx)
 	{
 		pdf_drop_obj(ctx, softmask.softmask);
+		fz_drop_colorspace(ctx, softmask.softmask_cs);
 		pdf_drop_obj(ctx, softmask.page_resources);
 		fz_rethrow(ctx);
 	}
@@ -1077,13 +1151,14 @@ pdf_show_char(fz_context *ctx, pdf_run_processor *pr, int cid, fz_text_language 
 	pdf_gstate *gstate = pr->gstate + pr->gtop;
 	pdf_font_desc *fontdesc = gstate->text.font;
 	fz_matrix trm;
+	float adv;
 	int gid;
 	int ucsbuf[PDF_MRANGE_CAP];
 	int ucslen;
 	int i;
 	int render_direct;
 
-	gid = pdf_tos_make_trm(ctx, &pr->tos, &gstate->text, fontdesc, cid, &trm);
+	gid = pdf_tos_make_trm(ctx, &pr->tos, &gstate->text, fontdesc, cid, &trm, &adv);
 
 	/* If we are uncachable, then render direct. */
 	render_direct = !fz_glyph_cacheable(ctx, fontdesc->font, gid);
@@ -1138,11 +1213,11 @@ pdf_show_char(fz_context *ctx, pdf_run_processor *pr, int cid, fz_text_language 
 	pr->bidi = guess_bidi_level(ucdn_get_bidi_class(ucsbuf[0]), pr->bidi);
 
 	/* add glyph to textobject */
-	fz_show_glyph_aux(ctx, pr->tos.text, fontdesc->font, trm, gid, ucsbuf[0], cid, fontdesc->wmode, pr->bidi, FZ_BIDI_NEUTRAL, lang);
+	fz_show_glyph_aux(ctx, pr->tos.text, fontdesc->font, trm, adv, gid, ucsbuf[0], cid, fontdesc->wmode, pr->bidi, FZ_BIDI_NEUTRAL, lang);
 
 	/* add filler glyphs for one-to-many unicode mapping */
 	for (i = 1; i < ucslen; i++)
-		fz_show_glyph_aux(ctx, pr->tos.text, fontdesc->font, trm, -1, ucsbuf[i], -1, fontdesc->wmode, pr->bidi, FZ_BIDI_NEUTRAL, lang);
+		fz_show_glyph_aux(ctx, pr->tos.text, fontdesc->font, trm, 0, -1, ucsbuf[i], -1, fontdesc->wmode, pr->bidi, FZ_BIDI_NEUTRAL, lang);
 
 	pdf_tos_move_after_char(ctx, &pr->tos);
 }
@@ -1323,6 +1398,7 @@ pdf_init_gstate(fz_context *ctx, pdf_gstate *gs, fz_matrix ctm)
 
 	gs->blendmode = 0;
 	gs->softmask = NULL;
+	gs->softmask_cs = NULL;
 	gs->softmask_resources = NULL;
 	gs->softmask_ctm = fz_identity;
 	gs->luminosity = 0;
@@ -1528,7 +1604,7 @@ end_oc(fz_context *ctx, pdf_run_processor *proc, pdf_obj *val, pdf_cycle_list *c
 	if (obj)
 	{
 		flush_begin_layer(ctx, proc);
-		fz_end_layer(ctx, proc->dev);
+		do_end_layer(ctx, proc);
 		return;
 	}
 
@@ -1563,7 +1639,7 @@ end_layer(fz_context *ctx, pdf_run_processor *proc, pdf_obj *val)
 	pdf_obj *obj = pdf_dict_get(ctx, val, PDF_NAME(Title));
 	if (obj)
 	{
-		fz_end_layer(ctx, proc->dev);
+		do_end_layer(ctx, proc);
 	}
 }
 
@@ -2162,6 +2238,7 @@ pdf_run_xobject(fz_context *ctx, pdf_run_processor *pr, pdf_obj *xobj, pdf_obj *
 	fz_catch(ctx)
 	{
 		pdf_drop_obj(ctx, softmask.softmask);
+		fz_drop_colorspace(ctx, softmask.softmask_cs);
 		pdf_drop_obj(ctx, softmask.page_resources);
 		/* Note: Any SYNTAX errors should have been swallowed
 		 * by pdf_process_contents, but in case any escape from other
@@ -2309,7 +2386,7 @@ static void pdf_run_gs_ca(fz_context *ctx, pdf_processor *proc, float alpha)
 	gstate->fill.alpha = fz_clamp(alpha, 0, 1);
 }
 
-static void pdf_run_gs_SMask(fz_context *ctx, pdf_processor *proc, pdf_obj *smask, float *bc, int luminosity, pdf_obj *tr)
+static void pdf_run_gs_SMask(fz_context *ctx, pdf_processor *proc, pdf_obj *smask, fz_colorspace *smask_cs, float *bc, int luminosity, pdf_obj *tr)
 {
 	pdf_run_processor *pr = (pdf_run_processor *)proc;
 	pdf_gstate *gstate = pdf_flush_text(ctx, pr);
@@ -2319,28 +2396,26 @@ static void pdf_run_gs_SMask(fz_context *ctx, pdf_processor *proc, pdf_obj *smas
 	{
 		pdf_drop_obj(ctx, gstate->softmask);
 		gstate->softmask = NULL;
+		fz_drop_colorspace(ctx, gstate->softmask_cs);
+		gstate->softmask_cs = NULL;
 		pdf_drop_obj(ctx, gstate->softmask_resources);
 		gstate->softmask_resources = NULL;
 	}
 
 	if (smask)
 	{
-		fz_colorspace *cs = pdf_xobject_colorspace(ctx, smask);
-		int cs_n = 1;
-		if (cs)
-			cs_n = fz_colorspace_n(ctx, cs);
+		int cs_n = fz_colorspace_n(ctx, smask_cs);
 		gstate->softmask_ctm = gstate->ctm;
 		gstate->softmask = pdf_keep_obj(ctx, smask);
+		gstate->softmask_cs = fz_keep_colorspace(ctx, smask_cs);
 		gstate->softmask_resources = pdf_keep_obj(ctx, pr->rstack->resources);
+		pdf_drop_obj(ctx, gstate->softmask_tr);
+		gstate->softmask_tr = NULL;
 		if (tr)
-		{
-			pdf_drop_obj(ctx, gstate->softmask_tr);
 			gstate->softmask_tr = pdf_keep_obj(ctx, tr);
-		}
 		for (i = 0; i < cs_n; ++i)
 			gstate->softmask_bc[i] = bc[i];
 		gstate->luminosity = luminosity;
-		fz_drop_colorspace(ctx, cs);
 	}
 }
 
@@ -2485,6 +2560,7 @@ static void pdf_run_n(fz_context *ctx, pdf_processor *proc)
 static void pdf_run_W(fz_context *ctx, pdf_processor *proc)
 {
 	pdf_run_processor *pr = (pdf_run_processor *)proc;
+	pdf_flush_text(ctx, pr);
 	pr->clip = 1;
 	pr->clip_even_odd = 0;
 }
@@ -2492,6 +2568,7 @@ static void pdf_run_W(fz_context *ctx, pdf_processor *proc)
 static void pdf_run_Wstar(fz_context *ctx, pdf_processor *proc)
 {
 	pdf_run_processor *pr = (pdf_run_processor *)proc;
+	pdf_flush_text(ctx, pr);
 	pr->clip = 1;
 	pr->clip_even_odd = 1;
 }
@@ -2856,10 +2933,13 @@ pdf_close_run_processor(fz_context *ctx, pdf_processor *proc)
 	while (pr->gtop)
 		pdf_grestore(ctx, pr);
 
-	while (pr->gstate[0].clip_depth)
+	while (pr->nest_depth > 0)
 	{
-		fz_pop_clip(ctx, pr->dev);
-		pr->gstate[0].clip_depth--;
+		if (pr->nest_mark[pr->nest_depth-1] == CLIP_MARK)
+			fz_pop_clip(ctx, pr->dev);
+		else
+			fz_end_layer(ctx, pr->dev);
+		pr->nest_depth--;
 	}
 
 	pop_structure_to(ctx, pr, NULL);
@@ -3128,32 +3208,32 @@ pdf_new_run_processor(fz_context *ctx, pdf_document *doc, fz_device *dev, fz_mat
 			proc->gstate[0].clip_depth = 0;
 			proc->gstate[0].ctm = ctm;
 		}
+
+		/* We need to save an extra level to allow for level 0 to be the parent gstate level. */
+		pdf_gsave(ctx, proc);
+
+		/* Structure details */
+		{
+			pdf_obj *struct_tree_root = pdf_dict_getl(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root), PDF_NAME(StructTreeRoot), NULL);
+			proc->struct_parent = struct_parent;
+			proc->role_map = pdf_keep_obj(ctx, pdf_dict_get(ctx, struct_tree_root, PDF_NAME(RoleMap)));
+
+			/* Annotations and XObjects can be their own content items. We spot this by
+			 * the struct_parent looking up to be a singular object. */
+			if (struct_parent != -1 && struct_tree_root)
+			{
+				pdf_obj *struct_obj = pdf_lookup_number(ctx, pdf_dict_get(ctx, struct_tree_root, PDF_NAME(ParentTree)), struct_parent);
+				if (pdf_is_dict(ctx, struct_obj))
+					send_begin_structure(ctx, proc, struct_obj);
+				/* We always end structure as required on closedown, so this is safe. */
+			}
+		}
 	}
 	fz_catch(ctx)
 	{
 		pdf_drop_run_processor(ctx, (pdf_processor *) proc);
 		fz_free(ctx, proc);
 		fz_rethrow(ctx);
-	}
-
-	/* We need to save an extra level to allow for level 0 to be the parent gstate level. */
-	pdf_gsave(ctx, proc);
-
-	/* Structure details */
-	{
-		pdf_obj *struct_tree_root = pdf_dict_getl(ctx, pdf_trailer(ctx, doc), PDF_NAME(Root), PDF_NAME(StructTreeRoot), NULL);
-		proc->struct_parent = struct_parent;
-		proc->role_map = pdf_keep_obj(ctx, pdf_dict_get(ctx, struct_tree_root, PDF_NAME(RoleMap)));
-
-		/* Annotations and XObjects can be their own content items. We spot this by
-		 * the struct_parent looking up to be a singular object. */
-		if (struct_parent != -1 && struct_tree_root)
-		{
-			pdf_obj *struct_obj = pdf_lookup_number(ctx, pdf_dict_get(ctx, struct_tree_root, PDF_NAME(ParentTree)), struct_parent);
-			if (pdf_is_dict(ctx, struct_obj))
-				send_begin_structure(ctx, proc, struct_obj);
-			/* We always end structure as required on closedown, so this is safe. */
-		}
 	}
 
 	return (pdf_processor*)proc;

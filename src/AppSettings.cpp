@@ -37,6 +37,10 @@
 
 #include "utils/Log.h"
 
+// workaround for OnMenuExit
+// if this flag is set, CloseWindow will not save prefs before closing the window.
+bool gDontSaveSettings = false;
+
 // SumatraPDF.cpp
 extern void RememberDefaultWindowPosition(MainWindow* win);
 
@@ -149,9 +153,30 @@ static void CreateExternalViewersCommands() {
     }
 }
 
-static void CreateCustomCommands() {
+static void CreateZoomCommands() {
+    auto prefs = gGlobalPrefs;
+    delete prefs->zoomLevelsCmdIds;
+    int n = prefs->zoomLevels->Size();
+    if (n <= 0) {
+        return;
+    }
+    Vec<int>* cmdIds = new Vec<int>(n);
+    prefs->zoomLevelsCmdIds = cmdIds;
+    for (int i = 0; i < n; i++) {
+        float zoomLevel = prefs->zoomLevels->At(i);
+        CommandArg* arg = NewFloatArg(kCmdArgLevel, zoomLevel);
+        auto cmd = CreateCustomCommand("CmdZoomCustom", CmdZoomCustom, arg);
+        cmdIds->InsertAt(i, cmd->id);
+    }
+}
+
+static void CreateCustomShortcuts() {
     for (Shortcut* shortcut : *gGlobalPrefs->shortcuts) {
         auto cmd = CreateCommandFromDefinition(shortcut->cmd);
+        if (!cmd) {
+            continue;
+        }
+        shortcut->cmdId = cmd->id;
         SetCommandNameAndShortcut(cmd, shortcut->name, shortcut->key);
     }
 }
@@ -244,23 +269,27 @@ bool LoadSettings() {
     //    auto fontName = ToWStrTemp(gprefs->fixedPageUI.ebookFontName);
     //    SetDefaultEbookFont(fontName.Get(), gprefs->fixedPageUI.ebookFontSize);
 
-    SetCurrentThemeFromSettings();
-    if (!file::Exists(settingsPath)) {
-        SaveSettings();
-    }
     ResetCachedFonts();
 
     // re-create commands
     FreeCustomCommands();
     // Note: some are also created in ReCreateSumatraAcceleratorTable()
+    CreateZoomCommands();
     CreateThemeCommands();
     CreateExternalViewersCommands();
     CreateSelectionHandlerCommands();
-    CreateCustomCommands();
+    CreateCustomShortcuts();
 
     // re-create accelerators
     FreeAcceleratorTables();
     CreateSumatraAcceleratorTable();
+
+    ReCreateToolbars();
+
+    SetCurrentThemeFromSettings();
+    if (!file::Exists(settingsPath)) {
+        SaveSettings();
+    }
 
     logf("LoadSettings('%s') took %.2f ms\n", settingsPath, TimeSinceInMs(timeStart));
     return true;
@@ -315,6 +344,13 @@ static void RememberSessionState() {
 // added or removed from gFileHistory (in order to keep
 // the list of recently opened documents in sync)
 bool SaveSettings() {
+    if (!gDontSaveSettings) {
+        // if we are exiting the application by File->Exit,
+        // OnMenuExit will have called SaveSettings() already
+        // and we skip the call here to avoid saving incomplete session info
+        // (because some windows might have been closed already)
+    }
+
     // don't save preferences without the proper permission
     if (!HasPermission(Perm::SavePreferences)) {
         return false;
@@ -435,7 +471,7 @@ void CleanUpSettings() {
 }
 
 static void SchedulePrefsReload() {
-    auto fn = MkFuncVoid(ReloadSettings);
+    auto fn = MkFunc0Void(ReloadSettings);
     uitask::Post(fn, "TaskReloadSettings");
 }
 
@@ -446,7 +482,7 @@ void RegisterSettingsForFileChanges() {
 
     ReportIf(gWatchedSettingsFile); // only call me once
     TempStr path = GetSettingsPathTemp();
-    auto fn = MkFuncVoid(SchedulePrefsReload);
+    auto fn = MkFunc0Void(SchedulePrefsReload);
     gWatchedSettingsFile = FileWatcherSubscribe(path, fn);
 }
 

@@ -18,6 +18,7 @@
 #include "GlobalPrefs.h"
 #include "DisplayModel.h"
 #include "MainWindow.h"
+#include "Theme.h"
 #include "WindowTab.h"
 #include "SumatraConfig.h"
 #include "Commands.h"
@@ -31,7 +32,7 @@
 #include "utils/Log.h"
 
 constexpr const char* kInfoRegular = "↑ ↓ to navigate      Enter to select     Esc to close";
-constexpr const char* kInfoSmartTab = "Ctrl+Tab to navigate         Release Ctrl to select";
+constexpr const char* kInfoSmartTab = "Ctrl+Tab to navigate         Release Ctrl to select    Space for sticky mode";
 
 // clang-format off
 // those commands never show up in command palette
@@ -40,7 +41,9 @@ static i32 gBlacklistCommandsFromPalette[] = {
     CmdOpenWithKnownExternalViewerFirst,
     CmdOpenWithKnownExternalViewerLast,
     CmdCommandPalette,
-    CmdSmartTabSwitch,
+    CmdNextTabSmart,
+    CmdPrevTabSmart,
+    CmdSetTheme,
 
     // managing frequently list in home tab
     CmdOpenSelectedDocument,
@@ -70,7 +73,6 @@ static i32 gBlacklistCommandsFromPalette[] = {
 // it's shorter to list the remaining commands
 static i32 gDocumentNotOpenWhitelist[] = {
     CmdOpenFile,
-    CmdOpenFolder,
     CmdExit,
     CmdNewWindow,
     CmdContributeTranslation,
@@ -88,6 +90,8 @@ static i32 gDocumentNotOpenWhitelist[] = {
     CmdDebugShowNotif,
     CmdDebugStartStressTest,
     CmdDebugTestApp,
+    CmdDebugTogglePredictiveRender,
+    CmdDebugToggleRtl,
     CmdFavoriteToggle,
     CmdToggleFullscreen,
     CmdToggleMenuBar,
@@ -114,7 +118,6 @@ static i32 gCommandsNoActivate[] = {
     CmdHelpOpenKeyboardShortcuts,
     CmdHelpVisitWebsite,
     CmdOpenFile,
-    CmdOpenFolder,
     CmdProperties,
     // TOOD: probably more
     0,
@@ -199,7 +202,7 @@ struct CommandPaletteWnd : Wnd {
 
     int currTabIdx = 0;
     bool smartTabMode = false;
-    bool shouldSelectTabOnCtrlUp = false;
+    bool stickyMode = false;
 
     bool PreTranslateMessage(MSG&) override;
     LRESULT WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) override;
@@ -207,7 +210,7 @@ struct CommandPaletteWnd : Wnd {
     void CollectStrings(MainWindow*);
     void FilterStringsForQuery(const char*, StrVecCP&);
 
-    bool Create(MainWindow* win, const char* prefix);
+    bool Create(MainWindow* win, const char* prefix, int smartTabAdvance);
     void QueryChanged();
 
     void ExecuteCurrentSelection();
@@ -452,12 +455,13 @@ void CommandPaletteWnd::CollectStrings(MainWindow* mainWin) {
     currTabIdx = 0;
     for (MainWindow* w : gWindows) {
         for (WindowTab* tab : w->Tabs()) {
+            ItemDataCP data;
+            data.tab = tab;
             if (tab->IsAboutTab()) {
+                tabs.Append("Home", data);
                 continue;
             }
             auto name = path::GetBaseNameTemp(tab->filePath);
-            ItemDataCP data;
-            data.tab = tab;
             tabs.Append(name, data);
             if (tab == currTab) {
                 currTabIdx = tabs.Size() - 1;
@@ -547,7 +551,11 @@ void SafeDeleteCommandPaletteWnd() {
 }
 
 static void ScheduleDelete() {
-    auto fn = MkFuncVoid(SafeDeleteCommandPaletteWnd);
+    if (!gCommandPaletteWnd) {
+        return;
+    }
+    HighlightTab(gCommandPaletteWnd->win, nullptr);
+    auto fn = MkFunc0Void(SafeDeleteCommandPaletteWnd);
     uitask::Post(fn, "SafeDeleteCommandPaletteWnd");
 }
 
@@ -562,6 +570,22 @@ LRESULT CommandPaletteWnd::WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lp
     }
 
     return WndProcDefault(hwnd, msg, wparam, lparam);
+}
+
+static void SelectionChange(CommandPaletteWnd* wnd) {
+    int idx = wnd->listBox->GetCurrentSelection();
+    logf("Selection changed: %d\n", idx);
+    if (!wnd->smartTabMode) {
+        return;
+    }
+    auto m = (ListBoxModelCP*)wnd->listBox->model;
+    ItemDataCP* data = m->strings.AtData(idx);
+    HighlightTab(wnd->win, data->tab);
+}
+
+static void SetCurrentSelection(CommandPaletteWnd* wnd, int idx) {
+    wnd->listBox->SetCurrentSelection(idx);
+    SelectionChange(wnd);
 }
 
 bool CommandPaletteWnd::PreTranslateMessage(MSG& msg) {
@@ -583,12 +607,9 @@ bool CommandPaletteWnd::PreTranslateMessage(MSG& msg) {
             dir = 1;
         }
 
+        // ctrl+tab, ctrl+shift+tab is like up / down
         if (msg.wParam == VK_TAB) {
             if (IsCtrlPressed()) {
-                if (smartTabMode) {
-                    shouldSelectTabOnCtrlUp = true;
-                    staticInfo->SetText(kInfoSmartTab);
-                }
                 dir = IsShiftPressed() ? -1 : 1;
             }
         }
@@ -607,7 +628,7 @@ bool CommandPaletteWnd::PreTranslateMessage(MSG& msg) {
         if (sel >= n) {
             sel = 0;
         }
-        listBox->SetCurrentSelection(sel);
+        SetCurrentSelection(this, sel);
         return true;
     }
 
@@ -615,10 +636,8 @@ bool CommandPaletteWnd::PreTranslateMessage(MSG& msg) {
         // in smart tab mode releasing ctrl + tab selects a tab
         if (msg.message == WM_KEYUP) {
             if (msg.wParam == VK_CONTROL) {
-                if (shouldSelectTabOnCtrlUp) {
+                if (!stickyMode) {
                     ExecuteCurrentSelection();
-                } else {
-                    staticInfo->SetText(kInfoRegular);
                 }
                 return true;
             }
@@ -703,19 +722,34 @@ void CommandPaletteWnd::FilterStringsForQuery(const char* filter, StrVecCP& stri
 void CommandPaletteWnd::QueryChanged() {
     const char* filter = editQuery->GetTextTemp();
     filter = SkipWS(filter);
+    int currSelIdx = 0;
     auto m = (ListBoxModelCP*)listBox->model;
-    FilterStringsForQuery(filter, m->strings);
-    listBox->SetModel(m);
-    if (m->ItemsCount() > 0) {
-        if (str::StartsWith(filter, kPalettePrefixTabs)) {
-            if (m->ItemsCount() == tabs.Size()) {
-                logf("QueryChanged(): selecting currTabIdx=%d\n", currTabIdx);
-                listBox->SetCurrentSelection(currTabIdx);
-                return;
+    int nItemsPrev = m->ItemsCount();
+    if (smartTabMode) {
+        if (!stickyMode) {
+            if (str::Len(filter) > 1) {
+                // we only advertise this for 'space' but any change to query
+                // enables sticky mode (i.e. no auto-selection
+                stickyMode = true;
+                currSelIdx = listBox->GetCurrentSelection();
             }
         }
-        listBox->SetCurrentSelection(0);
     }
+    FilterStringsForQuery(filter, m->strings);
+    listBox->SetModel(m);
+    int nItems = m->ItemsCount();
+    if (nItems == 0) {
+        return;
+    }
+    if (stickyMode && nItemsPrev == nItems) {
+        SetCurrentSelection(this, currSelIdx);
+        return;
+    }
+    SetCurrentSelection(this, 0);
+}
+
+static void CommandPaletteQueryChanged(CommandPaletteWnd* self) {
+    self->QueryChanged();
 }
 
 void CommandPaletteWnd::ExecuteCurrentSelection() {
@@ -763,7 +797,7 @@ static void ListDoubleClick(CommandPaletteWnd* w) {
     w->ExecuteCurrentSelection();
 }
 
-void OnDestroy(WmDestroyEvent&) {
+void OnDestroy(Wnd::DestroyEvent*) {
     ScheduleDelete();
 }
 
@@ -790,11 +824,10 @@ static Static* CreateStatic(HWND parent, HFONT font, const char* s) {
     return c;
 }
 
-static void CommandPaletteQueryChanged(CommandPaletteWnd* self) {
-    self->QueryChanged();
-}
-
-bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
+bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix, int smartTabAdvance) {
+    if (str::Eq(prefix, kPalettePrefixTabs)) {
+        smartTabMode = smartTabAdvance != 0;
+    }
     CollectStrings(win);
     {
         CreateCustomArgs args;
@@ -807,6 +840,10 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
         return false;
     }
 
+    auto colBg = ThemeWindowControlBackgroundColor();
+    auto colTxt = ThemeWindowTextColor();
+    SetColors(colTxt, colBg);
+
     auto vbox = new VBox();
     vbox->alignMain = MainAxisAlign::MainStart;
     vbox->alignCross = CrossAxisAlign::Stretch;
@@ -815,14 +852,16 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
         Edit::CreateArgs args;
         args.parent = hwnd;
         args.isMultiLine = false;
-        args.withBorder = true;
+        args.withBorder = false;
         args.cueText = "enter search term";
+        args.text = prefix;
         args.font = font;
         auto c = new Edit();
+        c->SetColors(colTxt, colBg);
         c->maxDx = 150;
-        c->onTextChanged = MkFunc0(CommandPaletteQueryChanged, this);
         HWND ok = c->Create(args);
         ReportIf(!ok);
+        c->onTextChanged = MkFunc0(CommandPaletteQueryChanged, this);
         editQuery = c;
         vbox->AddChild(c);
     }
@@ -834,19 +873,22 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
         auto pad = Insets{0, 4, 0, 4};
         {
             auto c = CreateStatic(hwnd, font, "# File History");
-            c->onClicked = MkFunc0(SwitchToFileHistory, this);
+            c->SetColors(colTxt, colBg);
+            c->onClick = MkFunc0(SwitchToFileHistory, this);
             auto p = new Padding(c, pad);
             hbox->AddChild(p);
         }
         {
             auto c = CreateStatic(hwnd, font, "> Commands");
-            c->onClicked = MkFunc0(SwitchToCommands, this);
+            c->SetColors(colTxt, colBg);
+            c->onClick = MkFunc0(SwitchToCommands, this);
             auto p = new Padding(c, pad);
             hbox->AddChild(p);
         }
         {
             auto c = CreateStatic(hwnd, font, "@ Tabs");
-            c->onClicked = MkFunc0(SwitchToTabs, this);
+            c->SetColors(colTxt, colBg);
+            c->onClick = MkFunc0(SwitchToTabs, this);
             auto p = new Padding(c, pad);
             hbox->AddChild(p);
         }
@@ -861,16 +903,18 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
         c->onDoubleClick = MkFunc0(ListDoubleClick, this);
         c->idealSizeLines = 32;
         c->SetInsetsPt(4, 0);
-        auto wnd = c->Create(args);
-        ReportIf(!wnd);
+        c->Create(args);
+        c->SetColors(colTxt, colBg);
+        c->onSelectionChanged = MkFunc0(SelectionChange, this);
         auto m = new ListBoxModelCP();
-        FilterStringsForQuery("", m->strings);
+        FilterStringsForQuery(prefix, m->strings);
         c->SetModel(m);
         listBox = c;
         vbox->AddChild(c, 1);
     }
     {
         auto c = CreateStatic(hwnd, this->font, smartTabMode ? kInfoSmartTab : kInfoRegular);
+        c->SetColors(colTxt, colBg);
         staticInfo = c;
         vbox->AddChild(c);
     }
@@ -889,29 +933,27 @@ bool CommandPaletteWnd::Create(MainWindow* win, const char* prefix) {
     LayoutAndSizeToContent(layout, dx, dy, hwnd);
     PositionCommandPalette(hwnd, win->hwndFrame);
 
-    if (!str::IsEmpty(prefix)) {
-        // this will trigger filtering
-        editQuery->SetText(prefix);
-        editQuery->SetSelection(1, 1);
+    editQuery->SetCursorPositionAtEnd();
+    if (smartTabMode) {
+        int nItems = listBox->model->ItemsCount();
+        int tabToSelect = (currTabIdx + nItems + smartTabAdvance) % nItems;
+        SetCurrentSelection(this, tabToSelect);
     }
 
     SetIsVisible(true);
-    ::SetFocus(editQuery->hwnd);
+    HwndSetFocus(editQuery->hwnd);
     return true;
 }
 
-void RunCommandPallette(MainWindow* win, const char* prefix) {
+void RunCommandPallette(MainWindow* win, const char* prefix, int smartTabAdvance) {
     ReportIf(gCommandPaletteWnd);
 
     auto wnd = new CommandPaletteWnd();
-    wnd->onDestroy = OnDestroy;
+    auto fn = MkFunc1Void<Wnd::DestroyEvent*>(OnDestroy);
+    wnd->onDestroy = fn;
     wnd->font = GetAppBiggerFont();
     wnd->win = win;
-    if (str::Eq(prefix, kPalettePrefixTabsSmart)) {
-        prefix = kPalettePrefixTabs;
-        wnd->smartTabMode = true;
-    }
-    bool ok = wnd->Create(win, prefix);
+    bool ok = wnd->Create(win, prefix, smartTabAdvance);
     ReportIf(!ok);
     gCommandPaletteWnd = wnd;
     gHwndToActivateOnClose = win->hwndFrame;

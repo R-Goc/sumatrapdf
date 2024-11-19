@@ -629,6 +629,12 @@ pdf_bound_page(fz_context *ctx, pdf_page *page, fz_box_type box)
 	return fz_transform_rect(rect, page_ctm);
 }
 
+static fz_rect
+pdf_bound_page_imp(fz_context *ctx, fz_page *page, fz_box_type box)
+{
+	return pdf_bound_page(ctx, (pdf_page*)page, box);
+}
+
 void
 pdf_set_page_box(fz_context *ctx, pdf_page *page, fz_box_type box, fz_rect rect)
 {
@@ -666,6 +672,12 @@ pdf_load_links(fz_context *ctx, pdf_page *page)
 	return fz_keep_link(ctx, page->links);
 }
 
+static fz_link *
+pdf_load_links_imp(fz_context *ctx, fz_page *page)
+{
+	return pdf_load_links(ctx, (pdf_page*)page);
+}
+
 pdf_obj *
 pdf_page_resources(fz_context *ctx, pdf_page *page)
 {
@@ -688,7 +700,7 @@ void
 pdf_page_obj_transform_box(fz_context *ctx, pdf_obj *pageobj, fz_rect *outbox, fz_matrix *page_ctm, fz_box_type box)
 {
 	pdf_obj *obj;
-	fz_rect usedbox, tempbox, cropbox;
+	fz_rect usedbox, tempbox, cropbox, mediabox;
 	float userunit = 1;
 	int rotate;
 
@@ -696,6 +708,9 @@ pdf_page_obj_transform_box(fz_context *ctx, pdf_obj *pageobj, fz_rect *outbox, f
 		outbox = &tempbox;
 
 	userunit = pdf_dict_get_real_default(ctx, pageobj, PDF_NAME(UserUnit), 1);
+
+	obj = pdf_dict_get_inheritable(ctx, pageobj, PDF_NAME(MediaBox));
+	mediabox = pdf_to_rect(ctx, obj);
 
 	obj = NULL;
 	if (box == FZ_ART_BOX)
@@ -707,8 +722,12 @@ pdf_page_obj_transform_box(fz_context *ctx, pdf_obj *pageobj, fz_rect *outbox, f
 	if (box == FZ_CROP_BOX || !obj)
 		obj = pdf_dict_get_inheritable(ctx, pageobj, PDF_NAME(CropBox));
 	if (box == FZ_MEDIA_BOX || !obj)
-		obj = pdf_dict_get_inheritable(ctx, pageobj, PDF_NAME(MediaBox));
-	usedbox = pdf_to_rect(ctx, obj);
+		usedbox = mediabox;
+	else
+	{
+		// never use a box larger than fits the paper (mediabox)
+		usedbox = fz_intersect_rect(mediabox, pdf_to_rect(ctx, obj));
+	}
 
 	if (fz_is_empty_rect(usedbox))
 		usedbox = fz_make_rect(0, 0, 612, 792);
@@ -944,6 +963,16 @@ scan_page_seps(fz_context *ctx, pdf_obj *res, fz_separations **seps, res_finder_
 		fn(ctx, seps, pdf_dict_get(ctx, obj, PDF_NAME(ColorSpace)), clearme);
 	}
 
+	dict = pdf_dict_get(ctx, res, PDF_NAME(Pattern));
+	n = pdf_dict_len(ctx, dict);
+	for (i = 0; i < n; i++)
+	{
+		pdf_obj *obj2;
+		obj = pdf_dict_get_val(ctx, dict, i);
+		obj2 = pdf_dict_get(ctx, obj, PDF_NAME(Shading));
+		fn(ctx, seps, pdf_dict_get(ctx, obj2, PDF_NAME(ColorSpace)), clearme);
+	}
+
 	dict = pdf_dict_get(ctx, res, PDF_NAME(XObject));
 	n = pdf_dict_len(ctx, dict);
 	for (i = 0; i < n; i++)
@@ -1009,8 +1038,9 @@ pdf_page_uses_overprint(fz_context *ctx, pdf_page *page)
 }
 
 static void
-pdf_drop_page_imp(fz_context *ctx, pdf_page *page)
+pdf_drop_page_imp(fz_context *ctx, fz_page *page_)
 {
+	pdf_page *page = (pdf_page*)page_;
 	pdf_annot *widget;
 	pdf_annot *annot;
 	pdf_link *link;
@@ -1022,6 +1052,7 @@ pdf_drop_page_imp(fz_context *ctx, pdf_page *page)
 		link = (pdf_link *) link->super.next;
 	}
 	fz_drop_link(ctx, page->links);
+	page->links = NULL;
 
 	annot = page->annots;
 	while (annot)
@@ -1030,6 +1061,7 @@ pdf_drop_page_imp(fz_context *ctx, pdf_page *page)
 		annot = annot->next;
 	}
 	pdf_drop_annots(ctx, page->annots);
+	page->annots = NULL;
 
 	widget = page->widgets;
 	while (widget)
@@ -1038,7 +1070,50 @@ pdf_drop_page_imp(fz_context *ctx, pdf_page *page)
 		widget = widget->next;
 	}
 	pdf_drop_widgets(ctx, page->widgets);
+	page->widgets = NULL;
 	pdf_drop_obj(ctx, page->obj);
+	page->obj = NULL;
+	page->doc = NULL;
+}
+
+static void pdf_run_page_contents_imp(fz_context *ctx, fz_page *page, fz_device *dev, fz_matrix ctm, fz_cookie *cookie)
+{
+	pdf_run_page_contents(ctx, (pdf_page*)page, dev, ctm, cookie);
+}
+
+static void pdf_run_page_annots_imp(fz_context *ctx, fz_page *page, fz_device *dev, fz_matrix ctm, fz_cookie *cookie)
+{
+	pdf_run_page_annots(ctx, (pdf_page*)page, dev, ctm, cookie);
+}
+
+static void pdf_run_page_widgets_imp(fz_context *ctx, fz_page *page, fz_device *dev, fz_matrix ctm, fz_cookie *cookie)
+{
+	pdf_run_page_widgets(ctx, (pdf_page*)page, dev, ctm, cookie);
+}
+
+static fz_transition * pdf_page_presentation_imp(fz_context *ctx, fz_page *page, fz_transition *transition, float *duration)
+{
+	return pdf_page_presentation(ctx, (pdf_page*)page, transition, duration);
+}
+
+static fz_separations * pdf_page_separations_imp(fz_context *ctx, fz_page *page)
+{
+	return pdf_page_separations(ctx, (pdf_page*)page);
+}
+
+static int pdf_page_uses_overprint_imp(fz_context *ctx, fz_page *page)
+{
+	return pdf_page_uses_overprint(ctx, (pdf_page*)page);
+}
+
+static fz_link * pdf_create_link_imp(fz_context *ctx, fz_page *page, fz_rect bbox, const char *uri)
+{
+	return pdf_create_link(ctx, (pdf_page*)page, bbox, uri);
+}
+
+static void pdf_delete_link_imp(fz_context *ctx, fz_page *page, fz_link *link)
+{
+	pdf_delete_link(ctx, (pdf_page*)page, link);
 }
 
 static pdf_page *
@@ -1048,17 +1123,17 @@ pdf_new_page(fz_context *ctx, pdf_document *doc)
 
 	page->doc = doc; /* typecast alias for page->super.doc */
 
-	page->super.drop_page = (fz_page_drop_page_fn*)pdf_drop_page_imp;
-	page->super.load_links = (fz_page_load_links_fn*)pdf_load_links;
-	page->super.bound_page = (fz_page_bound_page_fn*)pdf_bound_page;
-	page->super.run_page_contents = (fz_page_run_page_fn*)pdf_run_page_contents;
-	page->super.run_page_annots = (fz_page_run_page_fn*)pdf_run_page_annots;
-	page->super.run_page_widgets = (fz_page_run_page_fn*)pdf_run_page_widgets;
-	page->super.page_presentation = (fz_page_page_presentation_fn*)pdf_page_presentation;
-	page->super.separations = (fz_page_separations_fn *)pdf_page_separations;
-	page->super.overprint = (fz_page_uses_overprint_fn *)pdf_page_uses_overprint;
-	page->super.create_link = (fz_page_create_link_fn *)pdf_create_link;
-	page->super.delete_link = (fz_page_delete_link_fn *)pdf_delete_link;
+	page->super.drop_page = pdf_drop_page_imp;
+	page->super.load_links = pdf_load_links_imp;
+	page->super.bound_page = pdf_bound_page_imp;
+	page->super.run_page_contents = pdf_run_page_contents_imp;
+	page->super.run_page_annots = pdf_run_page_annots_imp;
+	page->super.run_page_widgets = pdf_run_page_widgets_imp;
+	page->super.page_presentation = pdf_page_presentation_imp;
+	page->super.separations = pdf_page_separations_imp;
+	page->super.overprint = pdf_page_uses_overprint_imp;
+	page->super.create_link = pdf_create_link_imp;
+	page->super.delete_link = pdf_delete_link_imp;
 
 	page->obj = NULL;
 
@@ -1188,6 +1263,49 @@ pdf_update_default_colorspaces(fz_context *ctx, fz_default_colorspaces *old_cs, 
 	return new_cs;
 }
 
+void pdf_nuke_page(fz_context *ctx, pdf_page *page)
+{
+	pdf_nuke_links(ctx, page);
+	pdf_nuke_annots(ctx, page);
+	pdf_drop_obj(ctx, page->obj);
+	page->obj = NULL;
+}
+
+void pdf_sync_page(fz_context *ctx, pdf_page *page)
+{
+	pdf_sync_links(ctx, page);
+	pdf_sync_annots(ctx, page);
+}
+
+void pdf_sync_open_pages(fz_context *ctx, pdf_document *doc)
+{
+	fz_page *page, *next;
+	pdf_page *ppage;
+	int number;
+
+	for (page = doc->super.open; page != NULL; page = next)
+	{
+		next = page->next;
+		if (page->doc == NULL)
+			continue;
+		ppage = (pdf_page*)page;
+		number = pdf_lookup_page_number(ctx, doc, ppage->obj);
+		if (number < 0)
+		{
+			pdf_nuke_page(ctx, ppage);
+			if (next)
+				next->prev = page->prev;
+			if (page->prev)
+				*page->prev = page->next;
+		}
+		else
+		{
+			pdf_sync_page(ctx, ppage);
+			page->number = number;
+		}
+	}
+}
+
 pdf_page *
 pdf_load_page(fz_context *ctx, pdf_document *doc, int number)
 {
@@ -1239,7 +1357,7 @@ pdf_load_page_imp(fz_context *ctx, fz_document *doc_, int chapter, int number)
 			fz_matrix page_ctm;
 			pdf_page_transform(ctx, page, &page_cropbox, &page_ctm);
 			page->links = pdf_load_link_annots(ctx, doc, page, obj, number, page_ctm);
-			pdf_load_annots(ctx, page, obj);
+			pdf_load_annots(ctx, page);
 		}
 	}
 	fz_catch(ctx)
@@ -1349,33 +1467,11 @@ pdf_delete_page(fz_context *ctx, pdf_document *doc, int at)
 	fz_catch(ctx)
 	{
 		pdf_abandon_operation(ctx, doc);
+		pdf_sync_open_pages(ctx, doc);
 		fz_rethrow(ctx);
 	}
 
-	/* Adjust the fz layer of cached pages */
-	fz_lock(ctx, FZ_LOCK_ALLOC);
-	{
-		fz_page *page, *next;
-
-		for (page = doc->super.open; page != NULL; page = next)
-		{
-			next = page->next;
-			if (page->number == at)
-			{
-				/* We have just 'removed' a page that is in the 'open' list
-				 * (i.e. that someone is holding a reference to). We need
-				 * to remove it so that no one else can load it now its gone.
-				 */
-				if (next)
-					next->prev = page->prev;
-				if (page->prev)
-					*page->prev = page->next;
-			}
-			else if (page->number >= at)
-				page->number--;
-		}
-	}
-	fz_unlock(ctx, FZ_LOCK_ALLOC);
+	pdf_sync_open_pages(ctx, doc);
 }
 
 void
@@ -1495,21 +1591,10 @@ pdf_insert_page(fz_context *ctx, pdf_document *doc, int at, pdf_obj *page_ref)
 	fz_catch(ctx)
 	{
 		pdf_abandon_operation(ctx, doc);
+		pdf_sync_open_pages(ctx, doc);
 		fz_rethrow(ctx);
 	}
-
-	/* Adjust the fz layer of cached pages */
-	fz_lock(ctx, FZ_LOCK_ALLOC);
-	{
-		fz_page *page;
-
-		for (page = doc->super.open; page != NULL; page = page->next)
-		{
-			if (page->number >= at)
-				page->number++;
-		}
-	}
-	fz_unlock(ctx, FZ_LOCK_ALLOC);
+	pdf_sync_open_pages(ctx, doc);
 }
 
 /*

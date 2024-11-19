@@ -148,7 +148,7 @@ DLGTEMPLATE* GetRtLDlgTemplate(int dlgId) {
 
 // creates a dialog box that dynamically gets a right-to-left layout if needed
 static INT_PTR CreateDialogBox(int dlgId, HWND parent, DLGPROC DlgProc, LPARAM data) {
-    bool isRtl = IsUIRightToLeft();
+    bool isRtl = IsUIRtl();
     bool isDefaultFont = IsAppFontSizeDefault();
     if (!isRtl && isDefaultFont) {
         return DialogBoxParam(nullptr, MAKEINTRESOURCE(dlgId), parent, DlgProc, data);
@@ -193,7 +193,7 @@ static INT_PTR CALLBACK Dialog_GetPassword_Proc(HWND hDlg, UINT msg, WPARAM wp, 
         HwndSetDlgItemText(hDlg, IDCANCEL, _TRA("Cancel"));
 
         CenterDialog(hDlg);
-        SetFocus(GetDlgItem(hDlg, IDC_GET_PASSWORD_EDIT));
+        HwndSetFocus(GetDlgItem(hDlg, IDC_GET_PASSWORD_EDIT));
         BringWindowToTop(hDlg);
         return FALSE;
     }
@@ -278,7 +278,7 @@ static INT_PTR CALLBACK Dialog_GoToPage_Proc(HWND hDlg, UINT msg, WPARAM wp, LPA
         HwndSetDlgItemText(hDlg, IDCANCEL, _TRA("Cancel"));
 
         CenterDialog(hDlg);
-        SetFocus(editPageNo);
+        HwndSetFocus(editPageNo);
         return FALSE;
     }
     //] ACCESSKEY_GROUP GoTo Page Dialog
@@ -357,7 +357,7 @@ static INT_PTR CALLBACK Dialog_Find_Proc(HWND hDlg, UINT msg, WPARAM wp, LPARAM 
             EditSelectAll(GetDlgItem(hDlg, IDC_FIND_EDIT));
 
             CenterDialog(hDlg);
-            SetFocus(GetDlgItem(hDlg, IDC_FIND_EDIT));
+            HwndSetFocus(GetDlgItem(hDlg, IDC_FIND_EDIT));
             return FALSE;
             //] ACCESSKEY_GROUP Find Dialog
         }
@@ -422,7 +422,7 @@ static INT_PTR CALLBACK Dialog_PdfAssociate_Proc(HWND hDlg, UINT msg, WPARAM wp,
         HwndSetDlgItemText(hDlg, IDCANCEL, _TRA("&No"));
 
         CenterDialog(hDlg);
-        SetFocus(GetDlgItem(hDlg, IDOK));
+        HwndSetFocus(GetDlgItem(hDlg, IDOK));
         return FALSE;
     }
     //] ACCESSKEY_GROUP Associate Dialog
@@ -499,7 +499,7 @@ static INT_PTR CALLBACK Dialog_ChangeLanguage_Proc(HWND hDlg, UINT msg, WPARAM w
         HwndSetDlgItemText(hDlg, IDCANCEL, _TRA("Cancel"));
 
         CenterDialog(hDlg);
-        SetFocus(langList);
+        HwndSetFocus(langList);
         return FALSE;
     }
 
@@ -546,37 +546,98 @@ const char* Dialog_ChangeLanguge(HWND hwnd, const char* currLangCode) {
     return data.langCode;
 }
 
-static float gItemZoom[] = {kZoomFitPage, kZoomFitWidth, kZoomFitContent, 0,     6400.0, 3200.0, 1600.0, 800.0, 400.0,
-                            200.0,        150.0,         125.0,           100.0, 50.0,   25.0,   12.5,   8.33f};
+TempStr ZoomLevelStr(float zoom) {
+    if (zoom == kZoomFitPage) {
+        return (TempStr)_TRA("Fit Page");
+    }
+    if (zoom == kZoomFitWidth) {
+        return (TempStr)_TRA("Fit Width");
+    }
+    if (zoom == kZoomFitContent) {
+        return (TempStr)_TRA("Fit Content");
+    }
+    if (zoom == 0) {
+        return (TempStr) "-";
+    }
+    TempStr res = str::FormatTemp("%.f%%", zoom);
+    return res;
+}
+
+// clang-format off
+static float gZoomLevels[] = {
+    kZoomFitPage,
+    kZoomFitWidth,
+    kZoomFitContent,
+    0,
+    6400.0,
+    3200.0,
+    1600.0,
+    800.0,
+    400.0,
+    200.0,
+    150.0,
+    125.0,
+    100.0,
+    50.0,
+    25.0,
+    12.5,
+    8.33f
+};
+static float gZoomLevelsChm[] = {
+    800.0,
+    400.0,
+    200.0,
+    150.0,
+    125.0,
+    100.0,
+    50.0,
+    25.0,
+};
+// clang-format on
+
+static Vec<float>* gCurrZoomLevels = nullptr;
+
+static void AddZoomLevel(float zoomLevel, HWND hwnd, Vec<float>* levels) {
+    TempStr s = ZoomLevelStr(zoomLevel);
+    CbAddString(hwnd, s);
+    levels->Append(zoomLevel);
+}
 
 static void SetupZoomComboBox(HWND hDlg, UINT idComboBox, bool forChm, float currZoom) {
     HWND hwnd = GetDlgItem(hDlg, idComboBox);
-    if (!forChm) {
-        CbAddString(hwnd, _TRA("Fit Page"));
-        CbAddString(hwnd, _TRA("Fit Width"));
-        CbAddString(hwnd, _TRA("Fit Content"));
-        CbAddString(hwnd, "-");
-        CbAddString(hwnd, "6400%");
-        CbAddString(hwnd, "3200%");
-        CbAddString(hwnd, "1600%");
+
+    auto prefs = gGlobalPrefs;
+    auto customZoomLevels = prefs->zoomLevels;
+    auto currZoomLevels = new Vec<float>();
+    int n = customZoomLevels->Size();
+    if (n > 0) {
+        if (!forChm) {
+            float* zoomLevels = gZoomLevels;
+            for (int i = 0; i < 4; i++) {
+                AddZoomLevel(zoomLevels[i], hwnd, currZoomLevels);
+            }
+        }
+        float maxZoom = forChm ? 800 : kZoomMax;
+        float minZoom = forChm ? 16 : kZoomMin;
+        for (int i = 0; i < n; i++) {
+            float zl = customZoomLevels->At(n - i - 1); // largest first
+            if (zl >= minZoom && zl <= maxZoom) {
+                AddZoomLevel(zl, hwnd, currZoomLevels);
+            }
+        }
+    } else {
+        float* zoomLevels = forChm ? gZoomLevelsChm : gZoomLevels;
+        n = forChm ? dimofi(gZoomLevelsChm) : dimofi(gZoomLevels);
+        for (int i = 0; i < n; i++) {
+            AddZoomLevel(zoomLevels[i], hwnd, currZoomLevels);
+        }
     }
-    CbAddString(hwnd, "800%");
-    CbAddString(hwnd, "400%");
-    CbAddString(hwnd, "200%");
-    CbAddString(hwnd, "150%");
-    CbAddString(hwnd, "125%");
-    CbAddString(hwnd, "100%");
-    CbAddString(hwnd, "50%");
-    CbAddString(hwnd, "25%");
-    if (!forChm) {
-        CbAddString(hwnd, "12.5%");
-        CbAddString(hwnd, "8.33%");
-    }
-    int first = forChm ? 7 : 0;
-    int last = forChm ? dimof(gItemZoom) - 2 : dimof(gItemZoom);
-    for (int i = first; i < last; i++) {
-        if (gItemZoom[i] == currZoom) {
-            CbSetCurrentSelection(hwnd, i - first);
+
+    n = currZoomLevels->Size();
+    for (int i = 0; i < n; i++) {
+        float zl = currZoomLevels->At(i);
+        if (zl == currZoom) {
+            CbSetCurrentSelection(hwnd, i);
         }
     }
 
@@ -584,28 +645,23 @@ static void SetupZoomComboBox(HWND hDlg, UINT idComboBox, bool forChm, float cur
         TempStr customZoom = str::FormatTemp("%.0f%%", currZoom);
         SetDlgItemTextW(hDlg, idComboBox, ToWStrTemp(customZoom));
     }
+    delete gCurrZoomLevels;
+    gCurrZoomLevels = currZoomLevels;
 }
 
-static float GetZoomComboBoxValue(HWND hDlg, UINT idComboBox, bool forChm, float defaultZoom) {
+static float GetZoomComboBoxValue(HWND hDlg, UINT idComboBox, float defaultZoom) {
     float newZoom = defaultZoom;
-
     int idx = ComboBox_GetCurSel(GetDlgItem(hDlg, idComboBox));
     if (idx == -1) {
         char* customZoom = HwndGetTextTemp(GetDlgItem(hDlg, idComboBox));
         float zoom = (float)atof(customZoom);
-        if (zoom > 0) {
-            newZoom = limitValue(zoom, kZoomMin, kZoomMax);
-        }
-    } else {
-        if (forChm) {
-            idx += 7;
-        }
-
-        if (0 != gItemZoom[idx]) {
-            newZoom = gItemZoom[idx];
-        }
+        newZoom = limitValue(zoom, kZoomMin, kZoomMax);
+        return newZoom;
     }
-
+    newZoom = gCurrZoomLevels->At(idx);
+    if (newZoom == 0) {
+        newZoom = defaultZoom;
+    }
     return newZoom;
 }
 
@@ -632,7 +688,7 @@ static INT_PTR CALLBACK Dialog_CustomZoom_Proc(HWND hDlg, UINT msg, WPARAM wp, L
             HwndSetDlgItemText(hDlg, IDCANCEL, _TRA("Cancel"));
 
             CenterDialog(hDlg);
-            SetFocus(GetDlgItem(hDlg, IDC_DEFAULT_ZOOM));
+            HwndSetFocus(GetDlgItem(hDlg, IDC_DEFAULT_ZOOM));
             return FALSE;
             //] ACCESSKEY_GROUP Zoom Dialog
 
@@ -640,7 +696,7 @@ static INT_PTR CALLBACK Dialog_CustomZoom_Proc(HWND hDlg, UINT msg, WPARAM wp, L
             switch (LOWORD(wp)) {
                 case IDOK:
                     data = (Dialog_CustomZoom_Data*)GetWindowLongPtr(hDlg, GWLP_USERDATA);
-                    data->zoomResult = GetZoomComboBoxValue(hDlg, IDC_DEFAULT_ZOOM, data->forChm, data->zoomArg);
+                    data->zoomResult = GetZoomComboBoxValue(hDlg, IDC_DEFAULT_ZOOM, data->zoomArg);
                     EndDialog(hDlg, IDOK);
                     return TRUE;
 
@@ -776,7 +832,7 @@ static INT_PTR CALLBACK Dialog_Settings_Proc(HWND hDlg, UINT msg, WPARAM wp, LPA
             }
 
             CenterDialog(hDlg);
-            SetFocus(GetDlgItem(hDlg, IDC_DEFAULT_LAYOUT));
+            HwndSetFocus(GetDlgItem(hDlg, IDC_DEFAULT_LAYOUT));
             return FALSE;
             //] ACCESSKEY_GROUP Settings Dialog
 
@@ -787,8 +843,7 @@ static INT_PTR CALLBACK Dialog_Settings_Proc(HWND hDlg, UINT msg, WPARAM wp, LPA
                     prefs->defaultDisplayModeEnum =
                         (DisplayMode)(SendDlgItemMessage(hDlg, IDC_DEFAULT_LAYOUT, CB_GETCURSEL, 0, 0) +
                                       (int)DisplayMode::Automatic);
-                    prefs->defaultZoomFloat =
-                        GetZoomComboBoxValue(hDlg, IDC_DEFAULT_ZOOM, false, prefs->defaultZoomFloat);
+                    prefs->defaultZoomFloat = GetZoomComboBoxValue(hDlg, IDC_DEFAULT_ZOOM, prefs->defaultZoomFloat);
 
                     prefs->showToc = (BST_CHECKED == IsDlgButtonChecked(hDlg, IDC_DEFAULT_SHOW_TOC));
                     prefs->rememberStatePerDocument =
@@ -911,7 +966,7 @@ HPROPSHEETPAGE CreatePrintAdvancedPropSheet(Print_Advanced_Data* data, ScopedMem
     auto s = _TRA("Advanced");
     psp.pszTitle = ToWStrTemp(s);
 
-    if (IsUIRightToLeft()) {
+    if (IsUIRtl()) {
         dlgTemplate.Set(GetRtLDlgTemplate(IDD_PROPSHEET_PRINT_ADVANCED));
         psp.pResource = dlgTemplate.Get();
         psp.dwFlags |= PSP_DLGINDIRECT;
@@ -943,7 +998,7 @@ static INT_PTR CALLBACK Dialog_AddFav_Proc(HWND hDlg, UINT msg, WPARAM wp, LPARA
             EditSelectAll(GetDlgItem(hDlg, IDC_FAV_NAME_EDIT));
         }
         CenterDialog(hDlg);
-        SetFocus(GetDlgItem(hDlg, IDC_FAV_NAME_EDIT));
+        HwndSetFocus(GetDlgItem(hDlg, IDC_FAV_NAME_EDIT));
         return FALSE;
     }
 

@@ -62,87 +62,88 @@ void DeleteThumbnailForFile(const char* filePath) {
     logf("DeleteThumbnailForFile: file::Remove('%s') %s\n", thumbPath, status);
 }
 
-bool LoadThumbnail(FileState* ds) {
-    delete ds->thumbnail;
-    ds->thumbnail = nullptr;
-
-    char* bmpPath = GetThumbnailPathTemp(ds->filePath);
+RenderedBitmap* LoadThumbnail(FileState* fs) {
+    if (fs->thumbnail) {
+        return fs->thumbnail;
+    }
+    TempStr bmpPath = GetThumbnailPathTemp(fs->filePath);
     if (!bmpPath) {
-        return false;
+        return nullptr;
     }
 
     RenderedBitmap* bmp = LoadRenderedBitmap(bmpPath);
     if (!bmp || bmp->GetSize().IsEmpty()) {
         delete bmp;
-        return false;
+        return nullptr;
     }
 
-    ds->thumbnail = bmp;
-    return true;
+    fs->thumbnail = bmp;
+    return fs->thumbnail;
 }
 
-bool HasThumbnail(FileState* ds) {
-    if (!ds->thumbnail && !LoadThumbnail(ds)) {
+bool HasThumbnail(FileState* fs) {
+    // TODO: optimize, LoadThumbnail() is probably not necessary
+    if (!fs->thumbnail && !LoadThumbnail(fs)) {
         return false;
     }
 
-    char* bmpPath = GetThumbnailPathTemp(ds->filePath);
+    TempStr bmpPath = GetThumbnailPathTemp(fs->filePath);
     if (!bmpPath) {
         return true;
     }
     FILETIME bmpTime = file::GetModificationTime(bmpPath);
-    FILETIME fileTime = file::GetModificationTime(ds->filePath);
+    FILETIME fileTime = file::GetModificationTime(fs->filePath);
     // delete the thumbnail if the file is newer than the thumbnail
     if (FileTimeDiffInSecs(fileTime, bmpTime) > 0) {
-        delete ds->thumbnail;
-        ds->thumbnail = nullptr;
+        delete fs->thumbnail;
+        fs->thumbnail = nullptr;
     }
 
-    return ds->thumbnail != nullptr;
+    return fs->thumbnail != nullptr;
 }
 
 // takes ownership of bmp
-void SetThumbnail(FileState* ds, RenderedBitmap* bmp) {
+void SetThumbnail(FileState* fs, RenderedBitmap* bmp) {
     ReportIf(bmp && bmp->GetSize().IsEmpty());
-    if (!ds || !bmp || bmp->GetSize().IsEmpty()) {
+    if (!fs || !bmp || bmp->GetSize().IsEmpty()) {
         delete bmp;
         return;
     }
-    delete ds->thumbnail;
-    ds->thumbnail = bmp;
-    SaveThumbnail(ds);
+    delete fs->thumbnail;
+    fs->thumbnail = bmp;
+    SaveThumbnail(fs);
 }
 
-void SaveThumbnail(FileState* ds) {
-    if (!ds->thumbnail) {
+void SaveThumbnail(FileState* fs) {
+    if (!fs->thumbnail) {
         return;
     }
 
-    TempStr thumbnailPath = GetThumbnailPathTemp(ds->filePath);
+    TempStr thumbnailPath = GetThumbnailPathTemp(fs->filePath);
     if (!thumbnailPath) {
         return;
     }
     if (!dir::CreateForFile(thumbnailPath)) {
-        logf("SaveThumbnail: dir::CreateForFile('%s') failed, file path: '%s'\n", thumbnailPath, ds->filePath);
+        logf("SaveThumbnail: dir::CreateForFile('%s') failed, file path: '%s'\n", thumbnailPath, fs->filePath);
         ReportIfQuick(true);
     }
     ReportIfQuick(!str::EndsWithI(thumbnailPath, ".png"));
 
-    Gdiplus::Bitmap bmp(ds->thumbnail->GetBitmap(), nullptr);
+    Gdiplus::Bitmap bmp(fs->thumbnail->GetBitmap(), nullptr);
     CLSID tmpClsid = GetEncoderClsid(L"image/png");
     TempWStr pathW = ToWStrTemp(thumbnailPath);
     bmp.Save(pathW, &tmpClsid, nullptr);
 }
 
-void RemoveThumbnail(FileState* ds) {
-    if (!HasThumbnail(ds)) {
+void RemoveThumbnail(FileState* fs) {
+    if (!HasThumbnail(fs)) {
         return;
     }
 
-    char* bmpPath = GetThumbnailPathTemp(ds->filePath);
+    char* bmpPath = GetThumbnailPathTemp(fs->filePath);
     if (bmpPath) {
         file::Delete(bmpPath);
     }
-    delete ds->thumbnail;
-    ds->thumbnail = nullptr;
+    delete fs->thumbnail;
+    fs->thumbnail = nullptr;
 }

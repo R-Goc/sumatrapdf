@@ -95,11 +95,6 @@ ALIAS(noto,	NotoSansSymbols_Regular_otf,	"Noto Sans Symbols",	UCDN_SCRIPT_BRAILL
 FONT(noto,	NotoSansSymbols2_Regular_otf,	"Noto Sans Symbols2",	MUPDF_SCRIPT_SYMBOLS2,	FZ_LANG_UNSET,	NO_SUBFONT,	REGULAR)
 FONT(noto,	NotoEmoji_Regular_ttf,		"Noto Emoji",		MUPDF_SCRIPT_EMOJI,	FZ_LANG_UNSET,	NO_SUBFONT,	REGULAR)
 
-#define DEFNOTO(symbol, name, script) FONT(noto, symbol, name, script, FZ_LANG_UNSET, NO_SUBFONT, REGULAR)
-DEFNOTO(NotoSerifDevanagari_Regular_otf, "Noto Serif Devanagari", UCDN_SCRIPT_DEVANAGARI)
-DEFNOTO(NotoSerifGeorgian_Regular_otf, "Noto Serif Georgian", UCDN_SCRIPT_GEORGIAN)
-DEFNOTO(NotoSerifTelugu_Regular_otf, "Noto Serif Telugu", UCDN_SCRIPT_TELUGU)
-
 #endif
 
 #ifndef TOFU_NOTO

@@ -72,8 +72,8 @@ HRESULT CLSIDFromString(const char* lpsz, LPCLSID pclsid);
 // file and directory operations
 TempStr GetSpecialFolderTemp(int csidl, bool createIfMissing = false);
 TempStr GetTempDirTemp();
-TempStr GetExePathTemp();
-TempStr GetExeDirTemp();
+TempStr GetSelfExePathTemp();
+TempStr GetSelfExeDirTemp();
 void ChangeCurrDirToDocuments();
 int FileTimeDiffInSecs(const FILETIME& ft1, const FILETIME& ft2);
 char* ResolveLnkTemp(const char* path);
@@ -88,6 +88,7 @@ bool LaunchFileShell(const char* path, const char* params = nullptr, const char*
 bool LaunchBrowser(const char* url);
 void OpenPathInExplorer(const char* path);
 
+void RunNonElevated(const char* exePath);
 bool LaunchElevated(const char* path, const char* cmdline);
 bool IsProcessRunningElevated();
 bool CanTalkToProcess(DWORD procId);
@@ -129,6 +130,7 @@ HWND HwndSetFocus(HWND hwnd);
 bool HwndIsFocused(HWND);
 bool IsCursorOverWindow(HWND);
 
+HWND HwndGetParent(HWND hwnd);
 TempStr HwndGetClassName(HWND hwnd);
 Point HwndGetCursorPos(HWND hwnd);
 int MapWindowPoints(HWND, HWND, Point*, int);
@@ -175,12 +177,6 @@ void ResizeWindow(HWND, int dx, int dy);
 
 void MessageBoxWarningSimple(HWND hwnd, const WCHAR* msg, const WCHAR* title = nullptr);
 void MessageBoxNYI(HWND hwnd);
-
-// schedule WM_PAINT at window's leasure
-void HwndScheduleRepaint(HWND hwnd);
-
-// do WM_PAINT immediately
-void RepaintNow(HWND hwnd);
 
 bool RegisterServerDLL(const char* dllPath, const char* args = nullptr);
 bool UnRegisterServerDLL(const char* dllPath, const char* args = nullptr);
@@ -286,7 +282,6 @@ HBITMAP CreateMemoryBitmap(Size size, HANDLE* hDataMapping = nullptr);
 bool BlitHBITMAP(HBITMAP hbmp, HDC hdc, Rect target);
 double GetProcessRunningTime();
 
-void RunNonElevated(const char* exePath);
 void VariantInitBstr(VARIANT& urlVar, const WCHAR* s);
 StrSpan LoadDataResource(int resId);
 bool DDEExecute(const WCHAR* server, const WCHAR* topic, const WCHAR* command);
@@ -329,7 +324,8 @@ void CbSetCurrentSelection(HWND, int);
 HICON HwndGetIcon(HWND);
 HICON HwndSetIcon(HWND, HICON);
 
-void HwndInvalidate(HWND);
+void HwndRepaintNow(HWND);
+void HwndScheduleRepaint(HWND hwnd);
 
 HFONT HwndGetFont(HWND);
 void HwndSetFont(HWND, HFONT);
@@ -342,6 +338,7 @@ void HwndToForeground(HWND hwnd);
 void HwndSetVisibility(HWND hwnd, bool visible);
 
 bool DeleteObjectSafe(HGDIOBJ*);
+bool DeleteBrushSafe(HBRUSH*);
 bool DestroyIconSafe(HICON*);
 
 void TbSetButtonInfo(HWND hwnd, int buttonId, TBBUTTONINFO* info);
@@ -374,3 +371,4 @@ u32 CpuID();
 LARGE_INTEGER TimeNow();
 double TimeDiffSecs(const LARGE_INTEGER& start, const LARGE_INTEGER& end);
 double TimeDiffMs(const LARGE_INTEGER& start, const LARGE_INTEGER& end);
+bool IsPEFileSigned(const char* filePath);

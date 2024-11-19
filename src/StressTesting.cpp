@@ -158,7 +158,7 @@ static void BenchFile(const char* path, const char* pagesSpec) {
         }
     }
 
-    engine->Release();
+    SafeEngineRelease(&engine);
 
     logf("Finished (in %.2f ms): %s\n", TimeSinceInMs(total), path);
 }
@@ -174,16 +174,15 @@ static bool IsFileToBench(const char* path) {
     return false;
 }
 
-static void CollectFilesToBenchCb(StrVec* files, VisitDirData* d) {
-    auto path = d->filePath;
-    if (IsFileToBench(path)) {
-        files->Append(path);
-    }
-}
-
 static void CollectFilesToBench(char* dir, StrVec& files) {
-    auto fn = MkFunc1<StrVec, VisitDirData*>(CollectFilesToBenchCb, &files);
-    DirTraverse(dir, true, fn);
+    DirIter di{dir};
+    di.recurse = true;
+    for (DirIterEntry* de : di) {
+        auto path = de->filePath;
+        if (IsFileToBench(path)) {
+            files.Append(path);
+        }
+    }
 }
 
 static void BenchDir(char* dir) {
@@ -374,10 +373,10 @@ struct DirFileProviderAsync : TestFileProvider {
     }
 };
 
-static void GetNextFileCb(char* path, StrQueue* q) {
+static void GetNextFileCb(char** path, StrQueue* q) {
     int n = q->strings.Size();
     int idx = rand() % n;
-    path = q->strings.RemoveAtFast(idx);
+    *path = q->strings.RemoveAtFast(idx);
 }
 
 TempStr DirFileProviderAsync::NextFile() {
@@ -387,9 +386,9 @@ TempStr DirFileProviderAsync::NextFile() {
 again:
     char* path = nullptr;
     if (random) {
-        auto fn = MkFunc1(GetNextFileCb, path);
-        bool isFinished = queue.Access(fn);
-        if (isFinished) {
+        auto fn = MkFunc1(GetNextFileCb, &path);
+        bool ok = queue.Access(fn);
+        if (!ok) {
             ReportIf(path);
             return nullptr;
         }
@@ -622,7 +621,7 @@ static bool OpenFile(StressTest* st, const char* fileName) {
     if (1 == st->pageForSearchStart) {
         // use text that is unlikely to be found, so that we search all pages
         HwndSetText(st->win->hwndFindEdit, "!z_yt");
-        FindTextOnThread(st->win, TextSearchDirection::Forward, true);
+        FindTextOnThread(st->win, TextSearch::Direction::Forward, true);
     }
 
     int secs = SecsSinceSystemTime(st->stressStartTime);
@@ -764,7 +763,7 @@ static bool GoToNextPage(StressTest* st) {
     if (st->currPageNo == st->pageForSearchStart) {
         // use text that is unlikely to be found, so that we search all pages
         HwndSetText(st->win->hwndFindEdit, "!z_yt");
-        FindTextOnThread(st->win, TextSearchDirection::Forward, true);
+        FindTextOnThread(st->win, TextSearch::Direction::Forward, true);
     }
 
     if (1 == rand() % 3) {

@@ -52,7 +52,7 @@ struct ScrollState {
 
 struct DocumentTextCache;
 struct TextSelection;
-class TextSearch;
+struct TextSearch;
 struct TextSel;
 class Synchronizer;
 
@@ -262,3 +262,5 @@ struct DisplayModel : DocController {
     /* allow resizing a window without triggering a new rendering (needed for window destruction) */
     bool dontRenderFlag = false;
 };
+
+extern bool gPredictiveRender;

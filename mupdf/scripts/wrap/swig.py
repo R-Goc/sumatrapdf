@@ -92,8 +92,8 @@ def _csharp_unicode_prefix():
 
 
 def build_swig(
-        state_,
-        build_dirs,
+        state_: state.State,
+        build_dirs: state.BuildDirs,
         generated,
         language='python',
         swig_command='swig',
@@ -173,7 +173,11 @@ def build_swig(
                 static std::string to_stdstring(PyObject* s)
                 {{
                     PyObject* repr_str = PyUnicode_AsEncodedString(s, "utf-8", "~E~");
-                    const char* repr_str_s = PyBytes_AS_STRING(repr_str);
+                    #ifdef Py_LIMITED_API
+                        const char* repr_str_s = PyBytes_AsString(repr_str);
+                    #else
+                        const char* repr_str_s = PyBytes_AS_STRING(repr_str);
+                    #endif
                     std::string ret = repr_str_s;
                     Py_DECREF(repr_str);
                     Py_DECREF(s);
@@ -645,6 +649,36 @@ def build_swig(
 
     text += '%module(directors="1") mupdf\n'
 
+    jlib.log(f'{build_dirs.Py_LIMITED_API=}')
+
+    text += f'%begin %{{\n'
+
+    if build_dirs.Py_LIMITED_API:  # e.g. 0x03080000
+        text += textwrap.dedent(f'''
+                /* Use Python Stable ABI with earliest Python version that we
+                support. */
+                #define Py_LIMITED_API {build_dirs.Py_LIMITED_API}
+
+                /* These seem to be mistakenly undefined when Py_LIMITED_API
+                is defined, so we force the values from Python.h. Also see
+                https://github.com/python/cpython/issues/98680. */
+                #ifndef PyBUF_READ
+                    #define PyBUF_READ 0x100
+                #endif
+                #ifndef PyBUF_WRITE
+                    #define PyBUF_WRITE 0x200
+                #endif
+                ''')
+
+        text += textwrap.dedent(f'''
+                /* This seems to be necessary on some Windows machines with
+                Py_LIMITED_API, otherwise compilation can fail because free()
+                and malloc() are not declared. */
+                #include <stdlib.h>
+                ''')
+
+    text += f'%}}\n'
+
     # https://www.mono-project.com/docs/advanced/pinvoke/
     #
     # > Mono on all platforms currently uses UTF-8 encoding for all string
@@ -976,6 +1010,7 @@ def build_swig(
                 %template(map_string_int) map<std::string, int>;
                 %template(vectorq) vector<{rename.namespace_class("fz_quad")}>;
                 %template(vector_search_page2_hit) vector<fz_search_page2_hit>;
+                %template(vector_fz_font_ucs_gid) vector<fz_font_ucs_gid>;
             }};
 
             // Make sure that operator++() gets converted to __next__().
@@ -1579,7 +1614,7 @@ def build_swig(
                         if isinstance( arg, FzOutput2):
                             assert not out, "More than one FzOutput2 passed to FzDocumentWriter.__init__()"
                             out = arg
-                    if out:
+                    if out is not None:
                         self._out = out
                     return FzDocumentWriter__init__0(self, *args)
                 FzDocumentWriter.__init__ = FzDocumentWriter__init__1
@@ -1648,6 +1683,8 @@ def build_swig(
                             f_fallback,
                             )
                     fz_install_load_system_font_funcs2(g_fz_install_load_system_font_funcs_args)
+
+                Py_LIMITED_API = {repr(build_dirs.Py_LIMITED_API) if build_dirs.Py_LIMITED_API else 'None'}
                 ''')
 
         # Add __iter__() methods for all classes with begin() and end() methods.
@@ -1679,32 +1716,6 @@ def build_swig(
 
         text += '%}\n'
 
-    text2_code = textwrap.dedent( '''
-            ''')
-
-    if text2_code.strip():
-        text2 = textwrap.dedent( f'''
-                %{{
-                    #include "mupdf/fitz.h"
-                    #include "mupdf/classes.h"
-                    #include "mupdf/classes2.h"
-                    #include <vector>
-
-                    {text2_code}
-                %}}
-
-                %include std_vector.i
-
-                namespace std
-                {{
-                    %template(vectori) vector<int>;
-                }};
-
-                {text2_code}
-                ''')
-    else:
-        text2 = ''
-
     if 1:   # lgtm [py/constant-conditional-expression]
         # This is a horrible hack to avoid swig failing because
         # include/mupdf/pdf/object.h defines an enum which contains a #include.
@@ -1729,10 +1740,10 @@ def build_swig(
         assert oo != o
         jlib.fs_update( oo, f'{build_dirs.dir_mupdf}/platform/python/include/mupdf/pdf/object.h')
 
-    swig_i      = f'{build_dirs.dir_mupdf}/platform/{language}/mupdfcpp_swig.i'
+    swig_i      = build_dirs.mupdfcpp_swig_i(language)
+    swig_cpp    = build_dirs.mupdfcpp_swig_cpp(language)
     include1    = f'{build_dirs.dir_mupdf}/include/'
     include2    = f'{build_dirs.dir_mupdf}/platform/c++/include'
-    swig_cpp    = f'{build_dirs.dir_mupdf}/platform/{language}/mupdfcpp_swig.cpp'
     swig_py     = f'{build_dirs.dir_so}/mupdf.py'
 
     swig2_i     = f'{build_dirs.dir_mupdf}/platform/{language}/mupdfcpp2_swig.i'
@@ -1742,10 +1753,7 @@ def build_swig(
     os.makedirs( f'{build_dirs.dir_mupdf}/platform/{language}', exist_ok=True)
     os.makedirs( f'{build_dirs.dir_so}', exist_ok=True)
     util.update_file_regress( text, swig_i, check_regress)
-    if text2:
-        util.update_file_regress( text2, swig2_i, check_regress)
-    else:
-        jlib.fs_update( '', swig2_i)
+    jlib.fs_update( '', swig2_i)
 
     # Disable some unhelpful SWIG warnings. Must not use -Wall as it overrides
     # all warning disables.
@@ -1789,7 +1797,7 @@ def build_swig(
             # include/mupdf/fitz/heap.h. Otherwise swig's preprocessor seems to
             # ignore #undef's in include/mupdf/fitz/heap-imp.h then complains
             # about redefinition of macros in include/mupdf/fitz/heap.h.
-            command = (f'''
+            command = f'''
                     "{swig_command}"
                         {"-D_WIN32" if state_.windows else ""}
                         -c++
@@ -1798,7 +1806,7 @@ def build_swig(
                         -Wextra
                         {disable_swig_warnings}
                         -module {module}
-                        -outdir {os.path.relpath(build_dirs.dir_so)}
+                        -outdir {os.path.relpath(build_dirs.dir_mupdf)}/platform/python
                         -o {cpp}
                         -includeall
                         {os.environ.get('XCXXFLAGS', '')}
@@ -1808,66 +1816,45 @@ def build_swig(
                         -ignoremissing
                         -DMUPDF_FITZ_HEAP_H
                         {swig_i}
-                    ''')
+                    '''
             return command
 
-        def modify_py( rebuilt, swig_py, do_enums):
-            if not rebuilt:
-                return
-            swig_py_leaf = os.path.basename( swig_py)
-            assert swig_py_leaf.endswith( '.py')
-            so = f'_{swig_py_leaf[:-3]}.so'
-            swig_py_tmp = f'{swig_py}-'
-            jlib.fs_remove( swig_py_tmp)
-            os.rename( swig_py, swig_py_tmp)
-            with open( swig_py_tmp) as f:
-                swig_py_content = f.read()
+        def modify_py( path_in, path_out):
+            with open( path_in) as f:
+                text = f.read()
 
-            if state_.windows:
-                jlib.log('Adding prefix to {swig_cpp=}')
-                prefix = ''
-                postfix = ''
-                with open( swig_cpp) as f:
-                    swig_py_content = prefix + swig_py_content + postfix
+            # Change all our PDF_ENUM_NAME_* enums so that they are actually
+            # PdfObj instances so that they can be used like any other PdfObj.
+            #
+            #jlib.log('{len(generated.c_enums)=}')
+            for enum_type, enum_names in generated.c_enums.items():
+                for enum_name in enum_names:
+                    if enum_name.startswith( 'PDF_ENUM_NAME_'):
+                        text += f'{enum_name} = {rename.class_("pdf_obj")}( obj_enum_to_obj( {enum_name}))\n'
 
-            if do_enums:
-                # Change all our PDF_ENUM_NAME_* enums so that they are actually
-                # PdfObj instances so that they can be used like any other PdfObj.
-                #
-                #jlib.log('{len(generated.c_enums)=}')
-                for enum_type, enum_names in generated.c_enums.items():
-                    for enum_name in enum_names:
-                        if enum_name.startswith( 'PDF_ENUM_NAME_'):
-                            swig_py_content += f'{enum_name} = {rename.class_("pdf_obj")}( obj_enum_to_obj( {enum_name}))\n'
+            # 2024-09-28: important to not include PDF_LIMIT here, because
+            # pdf_drop_obj() treats all pdf_obj*'s as real pointers if they are
+            # >= PDF_LIMIT.
+            for name in ('NULL', 'TRUE', 'FALSE'):
+                text += f'PDF_{name} = {rename.class_("pdf_obj")}( obj_enum_to_obj( PDF_ENUM_{name}))\n'
 
-            with open( swig_py_tmp, 'w') as f:
-                f.write( swig_py_content)
-            os.rename( swig_py_tmp, swig_py)
+            jlib.fs_update(text, path_out)
 
-        if text2:
-            # Make mupdf2, for mupdfpy optimisations.
-            jlib.log( 'Running SWIG to generate mupdf2 .cpp')
-            command = make_command( 'mupdf2', swig2_cpp, swig2_i)
-            rebuilt = jlib.build(
-                    (swig2_i, include1, include2),
-                    (swig2_cpp, swig2_py),
-                    command,
-                    force_rebuild,
-                    )
-            modify_py( rebuilt, swig2_py, do_enums=False)
-        else:
-            jlib.fs_update( '', swig2_cpp)
-            jlib.fs_remove( swig2_py)
+        jlib.fs_update( '', swig2_cpp)
+        jlib.fs_remove( swig2_py)
 
         # Make main mupdf .so.
         command = make_command( 'mupdf', swig_cpp, swig_i)
+        swig_py_ = f'{build_dirs.dir_mupdf}/platform/python/mupdf.py'
         rebuilt = jlib.build(
                 (swig_i, include1, include2),
-                (swig_cpp, swig_py),
+                (swig_cpp, swig_py_),
                 command,
                 force_rebuild,
                 )
-        modify_py( rebuilt, swig_py, do_enums=True)
+        jlib.log(f'swig => {rebuilt=}.')
+        updated = modify_py( swig_py_, swig_py)
+        jlib.log(f'modify_py() => {updated=}.')
 
 
     elif language == 'csharp':
@@ -1886,9 +1873,14 @@ def build_swig(
             # swig generated c dll reference to a c sharp project".
             #
             dllimport = 'mupdfcsharp.dll'
+
+        # See https://www.swig.org/Doc4.2/CSharp.html `23.3.1 Primitive types`
+        # for description of SWIGWORDSIZE64. If we were to build on 32-bit Linux
+        # we would have to remove the `-DSWIGWORDSIZE64` flag.
         command = (f'''
                 "{swig_command}"
                     {"-D_WIN32" if state_.windows else ""}
+                    {"-DSWIGWORDSIZE64" if state_.linux else ""}
                     -c++
                     -csharp
                     -Wextra
@@ -1940,7 +1932,8 @@ def build_swig(
     else:
         assert 0
 
-    if swig_cpp_old:
+    # Disabled; see above for explanation.
+    if 0 and swig_cpp_old:
         with open( swig_cpp_old) as f:
             swig_cpp_contents_old = f.read()
         with open(swig_cpp) as f:

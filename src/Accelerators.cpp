@@ -24,6 +24,7 @@
     V(VK_NUMPAD7, "numpad7")        \
     V(VK_NUMPAD8, "numpad8")        \
     V(VK_NUMPAD9, "numpad9")        \
+    V(VK_TAB, "Tab")                \
     V(VK_END, "End")                \
     V(VK_HOME, "Home")              \
     V(VK_LEFT, "Left")              \
@@ -190,7 +191,10 @@ ACCEL gBuiltInAccelerators[] = {
     {FSHIFT | FCONTROL | FVIRTKEY, 'T', CmdReopenLastClosedFile},
     {FCONTROL | FVIRTKEY, VK_NEXT, CmdNextTab},
     {FCONTROL | FVIRTKEY, VK_PRIOR, CmdPrevTab},
-    {FCONTROL | FVIRTKEY, VK_TAB, CmdSmartTabSwitch},
+    {FCONTROL | FSHIFT | FVIRTKEY, VK_NEXT, CmdMoveTabRight},
+    {FCONTROL | FSHIFT | FVIRTKEY, VK_PRIOR, CmdMoveTabLeft},
+    {FCONTROL | FVIRTKEY, VK_TAB, CmdNextTabSmart},
+    {FCONTROL | FSHIFT | FVIRTKEY, VK_TAB, CmdPrevTabSmart},
     {FVIRTKEY, VK_F1, CmdHelpOpenManual},
 
     // need 2 entries for 'a' and 'Shift + a'
@@ -300,7 +304,51 @@ again:
         return true;
     }
     // now we expect a character like 'a' or 'P'
-    char c = *shortcut++;
+    TempStr s = (TempStr)shortcut;
+    if (str::Leni(s) > 1) {
+        s = str::DupTemp(shortcut);
+        str::TrimWSInPlace(s, str::TrimOpt::Both);
+    }
+    if (str::Leni(s) > 1) {
+        // possibly a unicode character
+        WCHAR* ws = ToWStrTemp(s);
+        if (str::Len(ws) != 1) {
+            return false;
+        }
+        WCHAR wc = *ws;
+        // https://github.com/sumatrapdfreader/sumatrapdf/issues/4490
+        // handle cyrrilic / hebrew keyboards where shortcut character
+        // is unicode and needs to be translated to virtual char
+        HKL kl = GetKeyboardLayout(0);
+        SHORT key = VkKeyScanExW(wc, kl);
+        if (key == -1) {
+            logf("can't map char 0x%x\n", (int)wc);
+            return false;
+        } else {
+            // https://docs.microsoft.com/en-gb/windows/win32/api/winuser/nf-winuser-vkkeyscanexw
+            // ... high-order byte contains the shift state,
+            // 1 Either SHIFT key is pressed.
+            // 2 Either CTRL key is pressed.
+            // 4 Either ALT key is pressed.
+            BYTE shiftState = HIBYTE(key);
+            BYTE k = LOBYTE(key);
+            logf("mapped char 0x%x as %d (0x%x), shift state: %d\n", (int)wc, (int)k, (int)k, (int)shiftState);
+            key = (SHORT)k;
+            if (shiftState & 0x1) {
+                accel.fVirt |= (FSHIFT | FVIRTKEY);
+            }
+            if (shiftState & 0x2) {
+                accel.fVirt |= (FCONTROL | FVIRTKEY);
+            }
+            if (shiftState & 0x4) {
+                accel.fVirt |= (FALT | FVIRTKEY);
+            }
+            accel.fVirt |= FVIRTKEY;
+        }
+        accel.key = (WORD)key;
+        return true;
+    }
+    char c = *s++;
     if (!c) {
         return false;
     }
@@ -410,6 +458,12 @@ static const char* getVirt(BYTE key, bool isEng) {
         case VK_SCROLL:
             // TODO: ???
             return "Scroll";
+        case VK_VOLUME_DOWN:
+            // TODO: ???
+            return "Volume Down";
+        case VK_VOLUME_UP:
+            // TODO: ???
+            return "Volume Up";
     }
     /*
     TOOD: add those as well?
@@ -422,8 +476,6 @@ static const char* getVirt(BYTE key, bool isEng) {
         #define VK_BROWSER_HOME        0xAC
 
         #define VK_VOLUME_MUTE         0xAD
-        #define VK_VOLUME_DOWN         0xAE
-        #define VK_VOLUME_UP           0xAF
         #define VK_MEDIA_NEXT_TRACK    0xB0
         #define VK_MEDIA_PREV_TRACK    0xB1
         #define VK_MEDIA_STOP          0xB2

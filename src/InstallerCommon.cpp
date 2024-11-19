@@ -159,20 +159,10 @@ static char* GetExistingInstallationFilePathTemp(const char* name) {
     return path::JoinTemp(dir, name);
 }
 
-char* GetInstallDirTemp() {
-    logf("GetInstallDirTemp() => %s\n", gCli->installDir);
-    return gCli->installDir;
-}
-
 char* GetInstallationFilePathTemp(const char* name) {
     TempStr res = path::JoinTemp(gCli->installDir, name);
     logf("GetInstallationFilePath(%s) = > %s\n", name, res);
     return res;
-}
-
-TempStr GetInstalledExePathTemp() {
-    TempStr dir = GetInstallDirTemp();
-    return path::JoinTemp(dir, kExeName);
 }
 
 TempStr GetShortcutPathTemp(int csidl) {
@@ -249,7 +239,7 @@ constexpr const char* kSearchFilterDllName = "PdfFilter.dll";
 void RegisterSearchFilter(bool allUsers) {
     char* dllPath = GetInstallationFilePathTemp(kSearchFilterDllName);
     logf("RegisterSearchFilter() dllPath=%s\n", dllPath);
-    bool ok = InstallSearchFiler(dllPath, allUsers);
+    bool ok = InstallSearchFilter(dllPath, allUsers);
     if (ok) {
         log("  did registe\n");
         return;
@@ -514,10 +504,10 @@ void SetDefaultMsg() {
 }
 
 void InvalidateFrame() {
-    HwndInvalidate(gHwndFrame);
+    HwndRepaintNow(gHwndFrame);
 }
 
-bool CheckInstallUninstallPossible(bool silent) {
+bool CheckInstallUninstallPossible(HWND hwnd, bool silent) {
     logf("CheckInstallUninstallPossible(silent=%d)\n", silent);
     KillProcessesUsingInstallation();
     // logf("CheckInstallUninstallPossible: KillProcessesUsingInstallation() returned %d\n", ok);
@@ -538,8 +528,7 @@ bool CheckInstallUninstallPossible(bool silent) {
             MessageBeep(MB_ICONEXCLAMATION);
         }
     }
-    InvalidateFrame();
-
+    HwndRepaintNow(hwnd);
     return possible;
 }
 

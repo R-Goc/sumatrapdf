@@ -70,6 +70,20 @@ struct FixedPageUI {
     bool hideScrollbars;
 };
 
+// customization options for eBookUI
+struct EBookUI {
+    // font size, default 8.0
+    float fontSize;
+    // default is 420
+    float layoutDx;
+    // default is 595
+    float layoutDy;
+    // if true, we ignore ebook's CSS
+    bool ignoreDocumentCSS;
+    // custom CSS. Might need to set IgnoreDocumentCSS = true
+    char* customCSS;
+};
+
 // customization options for Comic Book and images UI
 struct ComicBookUI {
     // top, right, bottom and left margin (in that order) between window
@@ -187,8 +201,30 @@ struct Shortcut {
     char* key;
     // name shown in command palette
     char* name;
+    // if given, shows in toolbar
+    char* toolbarText;
     // command id
-    char* id;
+    int cmdId;
+};
+
+// color themes
+struct Theme {
+    // name of the theme
+    char* name;
+    // text color
+    char* textColor;
+    ParsedColor textColorParsed;
+    // background color
+    char* backgroundColor;
+    ParsedColor backgroundColorParsed;
+    // control background color
+    char* controlBackgroundColor;
+    ParsedColor controlBackgroundColorParsed;
+    // link color
+    char* linkColor;
+    ParsedColor linkColorParsed;
+    // should we colorize Windows controls and window areas
+    bool colorizeControls;
 };
 
 // Values which are persisted for bookmarks/favorites
@@ -268,6 +304,10 @@ struct FileState {
     RenderedBitmap* thumbnail;
     // temporary value needed for FileHistory::cmpOpenCount
     size_t index;
+    //
+    HIMAGELIST himl;
+    //
+    int iconIdx;
 };
 
 // a subset of FileState required for restoring the state of a single
@@ -397,11 +437,15 @@ struct GlobalPrefs {
     // zoom levels which zooming steps through in addition to Fit Page, Fit
     // Width and the minimum and maximum allowed values (8.33 and 6400)
     Vec<float>* zoomLevels;
+    //
+    Vec<int>* zoomLevelsCmdIds;
     // zoom step size in percents relative to the current zoom level. if
     // zero or negative, the values from ZoomLevels are used instead
     float zoomIncrement;
     // customization options for PDF, XPS, DjVu and PostScript UI
     FixedPageUI fixedPageUI;
+    // customization options for eBookUI
+    EBookUI eBookUI;
     // customization options for Comic Book and images UI
     ComicBookUI comicBookUI;
     // customization options for CHM UI. If UseFixedPageUI is true,
@@ -424,6 +468,8 @@ struct GlobalPrefs {
     Vec<SelectionHandler*>* selectionHandlers;
     // custom keyboard shortcuts
     Vec<Shortcut*>* shortcuts;
+    // color themes
+    Vec<Theme*>* themes;
     // passwords to try when opening a password protected document
     Vec<char*>* defaultPasswords;
     // ISO code of the current UI language
@@ -453,6 +499,11 @@ struct GlobalPrefs {
     DisplayMode defaultDisplayModeEnum;
     // value of DefaultZoom for internal usage
     float defaultZoomFloat;
+};
+// for parsing themes
+struct Themes {
+    // color themes
+    Vec<Theme*>* themes;
 };
 
 #ifdef INCLUDE_SETTINGSSTRUCTS_METADATA
@@ -484,6 +535,16 @@ static const FieldInfo gFixedPageUIFields[] = {
 static const StructInfo gFixedPageUIInfo = {sizeof(FixedPageUI), 8, gFixedPageUIFields,
                                             "TextColor\0BackgroundColor\0SelectionColor\0WindowMargin\0PageSpacing\0Gra"
                                             "dientColors\0InvertColors\0HideScrollbars"};
+
+static const FieldInfo gEBookUIFields[] = {
+    {offsetof(EBookUI, fontSize), SettingType::Float, (intptr_t) "0"},
+    {offsetof(EBookUI, layoutDx), SettingType::Float, (intptr_t) "0"},
+    {offsetof(EBookUI, layoutDy), SettingType::Float, (intptr_t) "0"},
+    {offsetof(EBookUI, ignoreDocumentCSS), SettingType::Bool, false},
+    {offsetof(EBookUI, customCSS), SettingType::String, 0},
+};
+static const StructInfo gEBookUIInfo = {sizeof(EBookUI), 5, gEBookUIFields,
+                                        "FontSize\0LayoutDx\0LayoutDy\0IgnoreDocumentCSS\0CustomCSS"};
 
 static const FieldInfo gWindowMargin_1_Fields[] = {
     {offsetof(WindowMargin, top), SettingType::Int, 0},
@@ -565,9 +626,21 @@ static const FieldInfo gShortcutFields[] = {
     {offsetof(Shortcut, cmd), SettingType::String, (intptr_t) ""},
     {offsetof(Shortcut, key), SettingType::String, (intptr_t) ""},
     {offsetof(Shortcut, name), SettingType::String, 0},
-    {offsetof(Shortcut, id), SettingType::String, 0},
+    {offsetof(Shortcut, toolbarText), SettingType::String, 0},
 };
-static const StructInfo gShortcutInfo = {sizeof(Shortcut), 4, gShortcutFields, "Cmd\0Key\0Name\0Id"};
+static const StructInfo gShortcutInfo = {sizeof(Shortcut), 4, gShortcutFields, "Cmd\0Key\0Name\0ToolbarText"};
+
+static const FieldInfo gThemeFields[] = {
+    {offsetof(Theme, name), SettingType::String, (intptr_t) ""},
+    {offsetof(Theme, textColor), SettingType::Color, (intptr_t) ""},
+    {offsetof(Theme, backgroundColor), SettingType::Color, (intptr_t) ""},
+    {offsetof(Theme, controlBackgroundColor), SettingType::Color, (intptr_t) ""},
+    {offsetof(Theme, linkColor), SettingType::Color, (intptr_t) ""},
+    {offsetof(Theme, colorizeControls), SettingType::Bool, false},
+};
+static const StructInfo gThemeInfo = {
+    sizeof(Theme), 6, gThemeFields,
+    "Name\0TextColor\0BackgroundColor\0ControlBackgroundColor\0LinkColor\0ColorizeControls"};
 
 static const FieldInfo gRectFields[] = {
     {offsetof(Rect, x), SettingType::Int, 0},
@@ -704,12 +777,12 @@ static const FieldInfo gGlobalPrefsFields[] = {
     {offsetof(GlobalPrefs, uIFontSize), SettingType::Int, 0},
     {offsetof(GlobalPrefs, useSysColors), SettingType::Bool, false},
     {offsetof(GlobalPrefs, useTabs), SettingType::Bool, true},
-    {offsetof(GlobalPrefs, zoomLevels), SettingType::FloatArray,
-     (intptr_t) "8.33 12.5 18 25 33.33 50 66.67 75 100 125 150 200 300 400 600 800 1000 1200 1600 2000 2400 3200 4800 "
-                "6400"},
+    {offsetof(GlobalPrefs, zoomLevels), SettingType::FloatArray, (intptr_t) ""},
     {offsetof(GlobalPrefs, zoomIncrement), SettingType::Float, (intptr_t) "0"},
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(GlobalPrefs, fixedPageUI), SettingType::Struct, (intptr_t)&gFixedPageUIInfo},
+    {(size_t)-1, SettingType::Comment, 0},
+    {offsetof(GlobalPrefs, eBookUI), SettingType::Struct, (intptr_t)&gEBookUIInfo},
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(GlobalPrefs, comicBookUI), SettingType::Struct, (intptr_t)&gComicBookUIInfo},
     {(size_t)-1, SettingType::Comment, 0},
@@ -727,6 +800,8 @@ static const FieldInfo gGlobalPrefsFields[] = {
     {(size_t)-1, SettingType::Comment, 0},
     {offsetof(GlobalPrefs, shortcuts), SettingType::Array, (intptr_t)&gShortcutInfo},
     {(size_t)-1, SettingType::Comment, 0},
+    {offsetof(GlobalPrefs, themes), SettingType::Array, (intptr_t)&gThemeInfo},
+    {(size_t)-1, SettingType::Comment, 0},
     {(size_t)-1, SettingType::Comment, (intptr_t) "You're not expected to change those manually"},
     {offsetof(GlobalPrefs, defaultPasswords), SettingType::StringArray, 0},
     {offsetof(GlobalPrefs, uiLanguage), SettingType::String, 0},
@@ -742,14 +817,30 @@ static const FieldInfo gGlobalPrefsFields[] = {
     {(size_t)-1, SettingType::Comment, (intptr_t) "Settings below are not recognized by the current version"},
 };
 static const StructInfo gGlobalPrefsInfo = {
-    sizeof(GlobalPrefs), 69, gGlobalPrefsFields,
+    sizeof(GlobalPrefs), 73, gGlobalPrefsFields,
     "\0\0CheckForUpdates\0CustomScreenDPI\0DefaultDisplayMode\0DefaultZoom\0EnableTeXEnhancements\0EscToExit\0FullPathI"
     "nTitle\0InverseSearchCmdLine\0LazyLoading\0MainWindowBackground\0NoHomeTab\0ReloadModifiedDocuments\0RememberOpene"
     "dFiles\0RememberStatePerDocument\0RestoreSession\0ReuseInstance\0ShowMenubar\0ShowToolbar\0ShowFavorites\0ShowToc"
     "\0ShowLinks\0ShowStartPage\0SidebarDx\0SmoothScroll\0TabWidth\0Theme\0TocDy\0ToolbarSize\0TreeFontName\0TreeFontSi"
-    "ze\0UIFontSize\0UseSysColors\0UseTabs\0ZoomLevels\0ZoomIncrement\0\0FixedPageUI\0\0ComicBookUI\0\0ChmUI\0\0Annotat"
-    "ions\0\0ExternalViewers\0\0ForwardSearch\0\0PrinterDefaults\0\0SelectionHandlers\0\0Shortcuts\0\0\0DefaultPassword"
-    "s\0UiLanguage\0VersionToSkip\0WindowState\0WindowPos\0FileStates\0SessionData\0ReopenOnce\0TimeOfLastUpdateCheck\0"
-    "OpenCountWeek\0\0"};
+    "ze\0UIFontSize\0UseSysColors\0UseTabs\0ZoomLevels\0ZoomIncrement\0\0FixedPageUI\0\0EBookUI\0\0ComicBookUI\0\0ChmUI"
+    "\0\0Annotations\0\0ExternalViewers\0\0ForwardSearch\0\0PrinterDefaults\0\0SelectionHandlers\0\0Shortcuts\0\0Themes"
+    "\0\0\0DefaultPasswords\0UiLanguage\0VersionToSkip\0WindowState\0WindowPos\0FileStates\0SessionData\0ReopenOnce\0Ti"
+    "meOfLastUpdateCheck\0OpenCountWeek\0\0"};
+static const FieldInfo gTheme_1_Fields[] = {
+    {offsetof(Theme, name), SettingType::String, (intptr_t) ""},
+    {offsetof(Theme, textColor), SettingType::Color, (intptr_t) ""},
+    {offsetof(Theme, backgroundColor), SettingType::Color, (intptr_t) ""},
+    {offsetof(Theme, controlBackgroundColor), SettingType::Color, (intptr_t) ""},
+    {offsetof(Theme, linkColor), SettingType::Color, (intptr_t) ""},
+    {offsetof(Theme, colorizeControls), SettingType::Bool, false},
+};
+static const StructInfo gTheme_1_Info = {
+    sizeof(Theme), 6, gTheme_1_Fields,
+    "Name\0TextColor\0BackgroundColor\0ControlBackgroundColor\0LinkColor\0ColorizeControls"};
+
+static const FieldInfo gThemesFields[] = {
+    {offsetof(Themes, themes), SettingType::Array, (intptr_t)&gTheme_1_Info},
+};
+static const StructInfo gThemesInfo = {sizeof(Themes), 1, gThemesFields, "Themes"};
 
 #endif

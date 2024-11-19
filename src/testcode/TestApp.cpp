@@ -31,12 +31,12 @@ static ILayout* CreateMainLayout(HWND hwnd) {
     vbox->alignCross = CrossAxisAlign::CrossCenter;
 
     {
-        auto b = CreateButton(hwnd, "Tabs test", MkFuncVoid(LaunchTabs));
+        auto b = CreateButton(hwnd, "Tabs test", MkFunc0Void(LaunchTabs));
         vbox->AddChild(b);
     }
 
     {
-        auto b = CreateButton(hwnd, "Layout test", MkFuncVoid(LaunchLayout));
+        auto b = CreateButton(hwnd, "Layout test", MkFunc0Void(LaunchLayout));
         vbox->AddChild(b);
     }
 
@@ -47,7 +47,7 @@ static ILayout* CreateMainLayout(HWND hwnd) {
 struct TestWnd : Wnd {
 };
 
-static void OnDestroy(WmDestroyEvent&) {
+static void OnDestroy(Wnd::DestroyEvent*) {
     ::PostQuitMessage(0);
 }
 
@@ -58,7 +58,8 @@ void TestApp(HINSTANCE hInstance) {
     gHinst = hInstance;
 
     auto w = new TestWnd();
-    w->onDestroy = OnDestroy;
+    auto fn = MkFunc1Void<Wnd::DestroyEvent*>(OnDestroy);
+    w->onDestroy = fn;
 
     // w->backgroundColor = MkColor((u8)0xae, (u8)0xae, (u8)0xae);
     CreateCustomArgs args;

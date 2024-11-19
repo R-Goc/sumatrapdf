@@ -4,7 +4,7 @@ There are many ways to navigate around the document.
 
 ## Scrolling with keyboard
 
-Below `Up`, `Down`, `Left`, `Right` refers to arrow keys.
+`Up`, `Down`, `Left`, `Right` refers to arrow keys.
 
 * `k`, `j`, `h`, `l` : scroll up / down / left / right
 * `Up`, `Down` : scroll up / down
@@ -14,28 +14,6 @@ Below `Up`, `Down`, `Left`, `Right` refers to arrow keys.
 * `Space`, `Shift + Space` : scroll forward / backward by a page
 * `Home`, `End` : go to first / last page
 * `g`, `Ctrl + g` : go to page (text field in toolbar or dialog if toolbar not shown)
-
-## Navigating history
-
-Certain actions add navigation point. You can go back and forward in the history of navigation points (similar to browser back button) with:
-* `Alt + Left`, `Backspace` : go back in history
-* `Alt + Right`, `Shift + Backspace` : go forward in history
-
-Actions that add navigation point:
-* explicitly going to a page (`g`, `Ctrl + g`)
-* clicking on a links within documents
-* going to a page via Bookmarks tree view
-* navigating via favorites (`Ctrl + b`)
-
-## Navigating between tabs
-
-* `Ctrl + Right` : next tab
-* `Ctrl + Left` : previous tab
-
-## Navigating between files
-
-* `Shift + Control + Right` : go to next file in current folder
-* `Shift + Control + Left` : go to previous file in current folder
 
 ## Scrolling with mouse and touch pad
 
@@ -67,6 +45,37 @@ Actions that add navigation point:
 * `Ctrl` + touch pad scroll gesture : zoom in / out
 * pinch zoom gesture on touch screen
 
+## Navigating history
+
+Certain actions add navigation point. You can go back and forward in the history of navigation points (similar to browser back button) with:
+* `Alt + Left`, `Backspace` : go back in history
+* `Alt + Right`, `Shift + Backspace` : go forward in history
+
+Actions that add navigation point:
+* explicitly going to a page (`g`, `Ctrl + g`)
+* clicking on a links within documents
+* going to a page via Bookmarks tree view
+* navigating via favorites (`Ctrl + b`)
+
+## Navigating between tabs
+
+* `Ctrl + Tab` : next tab
+* `Ctrl + Shift + Tab` : previous tab
+* `Ctrl + Page Down` : next tab
+* `Ctrl + Page Up` : previous tab
+
+## Moving tabs
+
+**v.3.6+**
+
+* `Ctrl + Shift + Page Down` : move tab right
+* `Ctrl + Shift + Page Up` : move tab left
+
+## Navigating between files
+
+* `Shift + Control + Right` : go to next file in current folder
+* `Shift + Control + Left` : go to previous file in current folder
+
 # Related commands
 
 You can [assign your own keyboard shortcuts](Customizing-keyboard-shortcuts.md). Here are related commands:
@@ -83,7 +92,7 @@ You can [assign your own keyboard shortcuts](Customizing-keyboard-shortcuts.md).
 
 Tab commands:
 
-* `CmdNextTab`, `CmdPrevTab`
+* `CmdNextTab`, `CmdPrevTab`, `CmdNextTabSmart`, `CmdPrevTabSmart`
 
 Zooming and view commands:
 

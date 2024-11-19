@@ -86,10 +86,6 @@ TempStr ChmFile::SmartToUtf8Temp(const char* s, uint overrideCP) const {
     return res;
 }
 
-WCHAR* ChmFile::SmartToWStr(const char* text) const {
-    return strconv::StrToWStr(text, codepage);
-}
-
 static char* GetCharZ(const ByteSlice& d, size_t off) {
     u8* data = d.data();
     size_t len = d.size();
@@ -378,7 +374,8 @@ static bool VisitChmTocItem(EbookTocVisitor* visitor, HtmlElement* el, uint cp, 
         AutoFreeWStr attrVal(el->GetAttribute("value"));
         if (attrName && attrVal && cp != CP_CHM_DEFAULT) {
             AutoFreeStr bytes = strconv::WStrToCodePage(CP_CHM_DEFAULT, attrVal);
-            attrVal.Set(strconv::StrToWStr(bytes.Get(), cp));
+            WCHAR* ws = strconv::StrCPToWStr(bytes.Get(), cp);
+            attrVal.Set(ws);
         }
         if (!attrName || !attrVal) {
             /* ignore incomplete/unneeded <param> */;
@@ -430,7 +427,7 @@ static bool VisitChmIndexItem(EbookTocVisitor* visitor, HtmlElement* el, uint cp
         if (attrName && attrVal && cp != CP_CHM_DEFAULT) {
             // TODO: convert attrVal to CP_CHM_DEFAULT
             // AutoFreeStr bytes = strconv::WStrToCodePage(CP_CHM_DEFAULT, attrVal);
-            // attrVal.Set(strconv::StrToWStr(bytes.Get(), cp));
+            // attrVal.Set(strconv::StrCPToWStr(bytes.Get(), cp));
         }
         if (!attrName || !attrVal) {
             /* ignore incomplete/unneeded <param> */;

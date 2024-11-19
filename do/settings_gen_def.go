@@ -3,6 +3,23 @@ package main
 // ##### setting definitions for SumatraPDF #####
 
 var (
+	ebookUI = []*Field{
+		mkField("FontSize", Float, 0, "font size, default 8.0"),
+		mkField("LayoutDx", Float, 0, "default is 420"),
+		mkField("LayoutDy", Float, 0, "default is 595"),
+		mkField("IgnoreDocumentCSS", Bool, false, "if true, we ignore ebook's CSS"),
+		mkField("CustomCSS", String, nil, "custom CSS. Might need to set IgnoreDocumentCSS = true"),
+	}
+
+	theme = []*Field{
+		mkField("Name", String, "", "name of the theme"),
+		mkField("TextColor", Color, "", "text color"),
+		mkField("BackgroundColor", Color, "", "background color"),
+		mkField("ControlBackgroundColor", Color, "", "control background color"),
+		mkField("LinkColor", Color, "", "link color"),
+		mkField("ColorizeControls", Bool, false, "should we colorize Windows controls and window areas"),
+	}
+
 	windowPos = []*Field{
 		mkField("X", Int, 0, "y coordinate"),
 		mkField("Y", Int, 0, "y coordinate"),
@@ -14,7 +31,8 @@ var (
 		mkField("Cmd", String, "", "command"),
 		mkField("Key", String, "", "keyboard shortcut (e.g. Ctrl-Alt-F)"),
 		mkField("Name", String, nil, "name shown in command palette").setVersion("3.6"),
-		mkField("Id", String, nil, "command id").setVersion("3.6"),
+		mkField("ToolbarText", String, nil, "if given, shows in toolbar").setVersion("3.6"),
+		mkField("CmdId", Int, nil, "command id").setVersion("3.6").setInternal(),
 	}
 
 	scrollPos = []*Field{
@@ -215,6 +233,8 @@ var (
 			"thumbnails are saved as PNG files in sumatrapdfcache directory").setInternal(),
 		mkField("Index", &Type{"", "size_t"}, "0",
 			"temporary value needed for FileHistory::cmpOpenCount").setInternal(),
+		mkField("Himl", &Type{"", "HIMAGELIST"}, "NULL", "").setInternal(),
+		mkField("IconIdx", Int, -1, "").setInternal(),
 	}
 
 	// list of fields which aren't serialized when UseDefaultState is set
@@ -322,9 +342,10 @@ var (
 			"if true, we use Windows system colors for background/text color. Over-rides other settings").setExpert(),
 		mkField("UseTabs", Bool, true,
 			"if true, documents are opened in tabs instead of new windows").setVersion("3.0"),
-		mkCompactArray("ZoomLevels", Float, "8.33 12.5 18 25 33.33 50 66.67 75 100 125 150 200 300 400 600 800 1000 1200 1600 2000 2400 3200 4800 6400",
+		mkCompactArray("ZoomLevels", Float, "",
 			"zoom levels which zooming steps through in addition to Fit Page, Fit Width and "+
 				"the minimum and maximum allowed values (8.33 and 6400)").setExpert().setDoc("sequence of zoom levels when zooming in/out; all values must lie between 8.33 and 6400"),
+		mkCompactArray("ZoomLevelsCmdIds", Int, "", "").setInternal(),
 		mkField("ZoomIncrement", Float, 0,
 			"zoom step size in percents relative to the current zoom level. "+
 				"if zero or negative, the values from ZoomLevels are used instead").setExpert(),
@@ -333,6 +354,9 @@ var (
 
 		mkStruct("FixedPageUI", fixedPageUI,
 			"customization options for PDF, XPS, DjVu and PostScript UI").setExpert(),
+		mkEmptyLine(),
+		mkStruct("EBookUI", ebookUI,
+			"customization options for eBookUI").setExpert(),
 		mkEmptyLine(),
 		mkStruct("ComicBookUI", comicBookUI,
 			"customization options for Comic Book and images UI").setExpert(),
@@ -357,6 +381,8 @@ var (
 		mkArray("SelectionHandlers", selectionHandler, "list of handlers for selected text, shown in context menu when text selection is active. See [docs for more information](https://www.sumatrapdfreader.org/docs/Customize-search-translation-services)"),
 		mkEmptyLine(),
 		mkArray("Shortcuts", keyboardShortcut, "custom keyboard shortcuts"),
+		mkEmptyLine(),
+		mkArray("Themes", theme, "color themes").setVersion("3.6"),
 		mkEmptyLine(),
 
 		// those are at the end because not expect user to change them manually
@@ -402,4 +428,10 @@ var (
 
 	globalPrefsStruct = mkStruct("GlobalPrefs", globalPrefs,
 		"Preferences are persisted in SumatraPDF-settings.txt")
+
+	themes = []*Field{
+		mkArray("Themes", theme, "color themes").setVersion("3.6"),
+	}
+	themesStruct = mkStruct("Themes", themes,
+		"for parsing themes")
 )

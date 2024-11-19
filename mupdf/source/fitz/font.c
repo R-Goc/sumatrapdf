@@ -274,28 +274,12 @@ fz_set_font_bbox(fz_context *ctx, fz_font *font, float xmin, float ymin, float x
 
 float fz_font_ascender(fz_context *ctx, fz_font *font)
 {
-	if (font->t3procs)
-		return font->bbox.y1;
-	else
-	{
-		FT_Face face = font->ft_face;
-		if (face->ascender == 0)
-			return 0.8f;
-		return (float)face->ascender / face->units_per_EM;
-	}
+	return font->ascender;
 }
 
 float fz_font_descender(fz_context *ctx, fz_font *font)
 {
-	if (font->t3procs)
-		return font->bbox.y0;
-	else
-	{
-		FT_Face face = font->ft_face;
-		if (face->descender == 0)
-			return -0.2f;
-		return (float)face->descender / face->units_per_EM;
-	}
+	return font->descender;
 }
 
 /*
@@ -786,6 +770,16 @@ fz_new_font_from_buffer(fz_context *ctx, const char *name, fz_buffer *buffer, in
 		(float) face->bbox.yMin / face->units_per_EM,
 		(float) face->bbox.xMax / face->units_per_EM,
 		(float) face->bbox.yMax / face->units_per_EM);
+
+	if (face->ascender == 0)
+		font->ascender = 0.8f;
+	else
+		font->ascender = (float)face->ascender / face->units_per_EM;
+
+	if (face->descender == 0)
+		font->descender = -0.2f;
+	else
+		font->descender = (float)face->descender / face->units_per_EM;
 
 	font->subfont = index;
 
@@ -2367,4 +2361,22 @@ fz_extract_ttf_from_ttc(fz_context *ctx, fz_font *font)
 	}
 
 	return buf;
+}
+
+void fz_enumerate_font_cmap(fz_context *ctx, fz_font *font, fz_cmap_callback *cb, void *opaque)
+{
+	unsigned long ucs;
+	unsigned int gid;
+
+	if (font == NULL || font->ft_face == NULL)
+		return;
+
+	fz_ft_lock(ctx);
+	for (ucs = FT_Get_First_Char(font->ft_face, &gid); gid > 0; ucs = FT_Get_Next_Char(font->ft_face, ucs, &gid))
+	{
+		fz_ft_unlock(ctx);
+		cb(ctx, opaque, ucs, gid);
+		fz_ft_lock(ctx);
+	}
+	fz_ft_unlock(ctx);
 }

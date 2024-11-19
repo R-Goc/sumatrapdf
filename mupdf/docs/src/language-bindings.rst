@@ -121,6 +121,24 @@ instead of MuPDF C structs:
 
 * Class-aware functions are declared in `mupdf/platform/c++/include/mupdf/classes2.h`.
 
+*
+  Wrapper classes for reference-counted MuPDF structs:
+
+  *
+    The C++ wrapper classes will have a public `m_internal` member that is a
+    pointer to the underlying MuPDF struct.
+
+  *
+    If a MuPDF C function returns a null pointer to a MuPDF struct, the
+    class-aware C++ wrapper will return an instance of the wrapper class with a
+    null `m_internal` member.
+
+  *
+    The C++ wrapper class will have an `operator bool()` that returns true if
+    the `m_internal` member is non-null.
+
+    [Introduced 2024-07-08.]
+
 Usually it is more convenient to use the class-aware C++ API rather than the
 low-level C++ API.
 
@@ -470,7 +488,7 @@ General requirements
 
 *
   `libclang Python interface onto
-  <https://libclang.readthedocs.io/en/latest/index.html>`_ the `libclang
+  <https://libclang.readthedocs.io/en/latest/index.html>`_ the `clang
   C/C++ parser <https://clang.llvm.org/>`_.
 
 * `swig <https://swig.org/>`_, for Python and C# bindings.
@@ -930,7 +948,7 @@ All generated files are within the MuPDF checkout.
                         functions.h
                         internal.h
 
-                implementation/  [MuPDF C++ implementation source files.]
+                implementation/ [MuPDF C++ implementation source files.]
                     classes.cpp
                     classes2.cpp
                     exceptions.cpp
@@ -941,13 +959,13 @@ All generated files are within the MuPDF checkout.
                 windows_mupdf.def   [List of MuPDF public global data, used when linking mupdfcpp.dll.]
 
             python/ [SWIG Python files.]
-                mupdfcpp_swig.cpp   [SWIG output file.]
                 mupdfcpp_swig.i     [SWIG input file.]
+                mupdfcpp_swig.i.cpp [SWIG output file.]
 
             csharp/  [SWIG C# files.]
                 mupdf.cs            [SWIG output file, no out-params helpers.]
-                mupdfcpp_swig.cpp   [SWIG output file.]
                 mupdfcpp_swig.i     [SWIG input file.]
+                mupdfcpp_swig.i.cpp [SWIG output file.]
 
             win32/
                 Release/    [Windows 32-bit .dll, .lib, .exp, .pdb etc.]
@@ -980,7 +998,7 @@ both in `mupdfcpp.dll`, which is built by running devenv on
 `platform/win32/mupdf.sln`.
 
 The Python SWIG library is called `_mupdf.pyd` which, despite the name, is a
-standard Windows DLL, built from `platform/python/mupdfcpp_swig.cpp`.
+standard Windows DLL, built from `platform/python/mupdfcpp_swig.i.cpp`.
 
 DLL export of functions and data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -24,6 +24,7 @@
 #include "GlobalPrefs.h"
 #include "SumatraPDF.h"
 #include "SumatraProperties.h"
+#include "Notifications.h"
 #include "MainWindow.h"
 #include "WindowTab.h"
 #include "resource.h"
@@ -169,7 +170,7 @@ static void MigrateTab(WindowTab* tab, MainWindow* newWin) {
     // newWin->ctrl = tab->ctrl;
     // UpdateUiForCurrentTab(newWin);
     // newWin->showSelection = tab->selectionOnPage != nullptr;
-    // SetFocus(newWin->hwndFrame);
+    // HwndSetFocus(newWin->hwndFrame);
     // newWin->RedrawAll(true);
     // TabsOnChangedDoc(newWin);
     WindowTab* newTab = new WindowTab(newWin);
@@ -204,6 +205,8 @@ void TabsSelect(MainWindow* win, int tabIndex) {
         return;
     }
 
+    bool isShowingPageInfo = (GetNotificationForGroup(win->hwndCanvas, kNotifPageInfo) != nullptr);
+
     // same work as in onSelectionChanging and onSelectionChanged
     SaveCurrentWindowTab(win);
     int prevIdx = tabsCtrl->SetSelected(tabIndex);
@@ -212,6 +215,9 @@ void TabsSelect(MainWindow* win, int tabIndex) {
     }
     WindowTab* tab = tabs[tabIndex];
     LoadModelIntoTab(tab);
+    if (isShowingPageInfo) {
+        PostMessageW(win->hwndFrame, WM_COMMAND, CmdTogglePageInfo, 0);
+    }
 }
 
 // clang-format off
@@ -317,7 +323,7 @@ static void TabsContextMenu(ContextMenuEvent* ev) {
         return;
     }
     POINT pt = ToPOINT(ev->mouseScreen);
-    HMENU popup = BuildMenuFromMenuDef(menuDefContextTab, CreatePopupMenu(), nullptr);
+    HMENU popup = BuildMenuFromDef(menuDefContextTab, CreatePopupMenu(), nullptr);
 
     Vec<WindowTab*> toCloseOther;
     Vec<WindowTab*> toCloseRight;
@@ -398,9 +404,13 @@ static void MainWindowTabSelectionChanging(MainWindow* win, TabsCtrl::SelectionC
 }
 
 static void MainWindowTabSelectionChanged(MainWindow* win, TabsCtrl::SelectionChangedEvent* ev) {
+    bool isShowingPageInfo = (GetNotificationForGroup(win->hwndCanvas, kNotifPageInfo) != nullptr);
     int currentIdx = win->tabsCtrl->GetSelected();
     WindowTab* tab = win->Tabs()[currentIdx];
     LoadModelIntoTab(tab);
+    if (isShowingPageInfo) {
+        PostMessageW(win->hwndFrame, WM_COMMAND, CmdTogglePageInfo, 0);
+    }
 }
 
 static void MainWindowTabMigration(MainWindow* win, TabsCtrl::MigrationEvent* ev) {
@@ -537,7 +547,12 @@ void TabsOnChangedDoc(MainWindow* win) {
         return;
     }
 
-    ReportIf(win->GetTabIdx(tab) != win->tabsCtrl->GetSelected());
+    int tabIdx = win->GetTabIdx(tab);
+    int selectedIdx = win->tabsCtrl->GetSelected();
+    if (tabIdx != selectedIdx) {
+        logf("TabsonChangeDoc: tabIdx (%d) != selectedIdx (%d)\n", tabIdx, selectedIdx);
+        ReportDebugIf(tabIdx != selectedIdx);
+    }
     VerifyWindowTab(win, tab);
     UpdateTabTitle(tab);
 }
@@ -592,4 +607,21 @@ void TabsOnCtrlTab(MainWindow* win, bool reverse) {
     idx += count; // ensure > 0
     idx = idx % count;
     TabsSelect(win, idx);
+}
+
+void MoveTab(MainWindow* win, int dir) {
+    if (!win) {
+        return;
+    }
+    int nTabs = win->TabCount();
+    int idx = win->tabsCtrl->GetSelected();
+    int newIdx = idx + dir;
+    if (newIdx < 0) {
+        return;
+    }
+    if (newIdx >= nTabs) {
+        return;
+    }
+    win->tabsCtrl->SwapTabs(idx, newIdx);
+    win->tabsCtrl->SetSelected(newIdx);
 }

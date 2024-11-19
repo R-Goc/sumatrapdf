@@ -34,22 +34,19 @@
 
 static const char* kNotifUpdateCheckInProgress = "notifUpdateCheckInProgress";
 
-// for testing: if defined will ignore version checks etc. and act like there's an update
-// but only for user-initiated check
-// #define FORCE_AUTO_UPDATE
-
 // certificate on www.sumatrapdfreader.org is not supported by win7 and win8.1
 // (doesn't have the ciphers they understand)
 // so we first try sumatra-website.onrender.com which should work
 
-// https://kjkpubsf.sfo2.digitaloceanspaces.com/software/sumatrapdf/sumpdf-prerelease-update.txt
+// https://kjk-files.s3.us-west-001.backblazeb2.com/software/sumatrapdf/sumpdf-prerelease-update.txt
 // clang-format off
-#if defined(PRE_RELEASE_VER) || defined(FORCE_AUTO_UPDATE)
+#if defined(PRE_RELEASE_VER) || defined(DEBUG)
 constexpr const char* kUpdateInfoURL = "https://www.sumatrapdfreader.org/updatecheck-pre-release.txt";
-constexpr const char* kUpdateInfoURL2 = "https://sumatra-website.onrender.com/updatecheck-pre-release.txt";
+constexpr const char* kUpdateInfoURL2 = "https://kjk-files.s3.us-west-001.backblazeb2.com/software/sumatrapdf/sumpdf-prerelease-update.txt";
 #else
 constexpr const char* kUpdateInfoURL = "https://www.sumatrapdfreader.org/update-check-rel.txt";
-constexpr const char* kUpdateInfoURL2 = "https://sumatra-website.onrender.com/update-check-rel.txt";
+// Note: I don't have backup for this
+constexpr const char* kUpdateInfoURL2 = "https://www.sumatrapdfreader.org/update-check-rel.txt";
 #endif
 
 #ifndef kWebisteDownloadPageURL
@@ -112,11 +109,12 @@ static UpdateInfo* ParseUpdateInfo(const char* d) {
         return nullptr;
     }
 
-    SquareTree tree(d);
-    if (!tree.root) {
+    SquareTreeNode* root = ParseSquareTree(d);
+    if (!root) {
         return nullptr;
     }
-    SquareTreeNode* node = tree.root->GetChild("SumatraPDF");
+    AutoDelete delRoot(root);
+    SquareTreeNode* node = root->GetChild("SumatraPDF");
     if (!node) {
         return nullptr;
     }
@@ -290,7 +288,7 @@ static void NotifyUserOfUpdate(UpdateInfo* updateInfo) {
     } else {
         // we're asking to over-write over ourselves, so also wait 2 secs to allow
         // our process to exit
-        cmd.AppendFmt(R"( -sleep-ms 500 -exit-when-done -update-self-to "%s")", GetExePathTemp());
+        cmd.AppendFmt(R"( -sleep-ms 500 -exit-when-done -update-self-to "%s")", GetSelfExePathTemp());
     }
     logf("NotifyUserOfUpdate: installer cmd: '%s'\n", cmd.Get());
     CreateProcessHelper(installerPath, cmd.Get());
@@ -299,7 +297,7 @@ static void NotifyUserOfUpdate(UpdateInfo* updateInfo) {
 
 struct UpdateProgressData {
     HWND hwndForNotif = nullptr;
-    int nDownloaded = 0;
+    i64 nDownloaded = 0;
 };
 
 struct DownloadUpdateAsyncData {
@@ -322,10 +320,11 @@ static void DownloadUpdateFinish(DownloadUpdateAsyncData* data) {
 }
 
 static void UpdateDownloadProgressNotif(UpdateProgressData* data) {
-    logf("UpdateDownloadProgressNotif: n: %d\n", (int)data->nDownloaded);
+    TempStr size = FormatFileSizeTransTemp(data->nDownloaded);
+    logf("UpdateDownloadProgressNotif: %s\n", size);
     auto wnd = GetNotificationForGroup(data->hwndForNotif, kNotifUpdateCheckInProgress);
     if (wnd) {
-        TempStr msg = str::FormatTemp("Downloading update: %d bytes\n", data->nDownloaded);
+        TempStr msg = str::FormatTemp("Downloading update: %s\n", size);
         NotificationUpdateMessage(wnd, msg, 0, true);
     } else {
         logf("UpdateDownloadProgressNotif: no wnd\n");
@@ -370,7 +369,13 @@ static bool ShouldDownloadUpdate(UpdateInfo* updateInfo, UpdateCheck updateCheck
     auto latestVer = updateInfo->latestVer;
     const char* myVer = UPDATE_CHECK_VERA;
     // myVer = L"3.1"; // for ad-hoc debugging of auto-update code
-    bool hasUpdate = CompareVersion(latestVer, myVer) > 0;
+    bool hasUpdate = CompareProgramVersion(latestVer, myVer) > 0;
+    if (gIsDebugBuild) {
+        // for easier testing, in debug build update check is never triggered
+        // by automatic update check and always triggers by user-initiated
+        // user can cancel the update
+        hasUpdate = updateCheckType == UpdateCheck::UserInitiated;
+    }
     if (hasUpdate && updateCheckType == UpdateCheck::Automatic) {
         // if user wanted to skip this version, we skip it in automated check
         if (str::EqI(gGlobalPrefs->versionToSkip, latestVer)) {
@@ -589,7 +594,7 @@ void UpdateSelfTo(const char* path) {
     // had time to exit so that we can overwrite it
     ::Sleep(gCli->sleepMs);
 
-    TempStr srcPath = GetExePathTemp();
+    TempStr srcPath = GetSelfExePathTemp();
     bool ok = file::Copy(path, srcPath, false);
     // TODO: maybe retry if copy fails under the theory that the file
     // might be temporarily locked

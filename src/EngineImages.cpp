@@ -68,7 +68,9 @@ struct ImagePage {
 
 struct ImagePageInfo {
     Vec<IPageElement*> allElements;
-    RectF mediabox;
+    RectF mediabox{};
+    bool hasMediaBox = false;
+    ImagePageInfo() = default;
 };
 
 class EngineImages : public EngineBase {
@@ -148,8 +150,9 @@ RectF EngineImages::PageMediabox(int pageNo) {
     int n = pageNo - 1;
     ImagePageInfo* pi = pages[n];
     RectF& mbox = pi->mediabox;
-    if (mbox.IsEmpty()) {
+    if (!pi->hasMediaBox) {
         mbox = LoadMediabox(pageNo);
+        pi->hasMediaBox = true;
     }
     return mbox;
 }
@@ -620,6 +623,7 @@ bool EngineImage::FinishLoading() {
     auto pi = new ImagePageInfo();
     pi->mediabox = RectF(0, 0, (float)image->GetWidth(), (float)image->GetHeight());
     pages.Append(pi);
+    pi->hasMediaBox = true;
     ReportIf(pages.size() != 1);
 
     // extract all frames from multi-page TIFFs and animated GIFs
@@ -747,7 +751,7 @@ EngineBase* EngineImage::CreateFromFile(const char* path) {
     logf("EngineImage::CreateFromFile(%s)\n", path);
     EngineImage* engine = new EngineImage();
     if (!engine->LoadSingleFile(path)) {
-        engine->Release();
+        SafeEngineRelease(&engine);
         return nullptr;
     }
     return engine;
@@ -756,7 +760,7 @@ EngineBase* EngineImage::CreateFromFile(const char* path) {
 EngineBase* EngineImage::CreateFromStream(IStream* stream) {
     EngineImage* engine = new EngineImage();
     if (!engine->LoadFromStream(stream)) {
-        engine->Release();
+        SafeEngineRelease(&engine);
         return nullptr;
     }
     return engine;
@@ -764,10 +768,10 @@ EngineBase* EngineImage::CreateFromStream(IStream* stream) {
 
 // clang-format off
 static Kind imageEngineKinds[] = {
-    kindFilePng, kindFileJpeg, kindFileGif,
-    kindFileTiff, kindFileBmp, kindFileTga,
-    kindFileJxr, kindFileHdp, kindFileWdp,
-    kindFileWebp, kindFileJp2, kindFileHeic,
+    kindFilePng,  kindFileJpeg, kindFileGif,
+    kindFileTiff, kindFileBmp,  kindFileTga,
+    kindFileJxr,  kindFileHdp,  kindFileWdp,
+    kindFileWebp, kindFileJp2,  kindFileHeic,
     kindFileAvif
 };
 // clang-format on
@@ -838,19 +842,17 @@ class EngineImageDir : public EngineImages {
     TocTree* tocTree = nullptr;
 };
 
-static void LoadImageDirCb(EngineImageDir* e, VisitDirData* d) {
-    auto path = d->filePath;
-    Kind kind = GuessFileTypeFromName(path);
-    if (IsEngineImageSupportedFileType(e->kind)) {
-        e->pageFileNames.Append(path);
-    }
-}
-
 static bool LoadImageDir(EngineImageDir* e, const char* dir) {
     e->SetFilePath(dir);
 
-    auto fn = MkFunc1(LoadImageDirCb, e);
-    DirTraverse(dir, false, fn);
+    DirIter di{dir};
+    for (DirIterEntry* de : di) {
+        auto path = de->filePath;
+        Kind kind = GuessFileTypeFromName(path);
+        if (IsEngineImageSupportedFileType(kind)) {
+            e->pageFileNames.Append(path);
+        }
+    }
 
     int nFiles = e->pageFileNames.Size();
     if (nFiles == 0) {
@@ -973,7 +975,7 @@ EngineBase* EngineImageDir::CreateFromFile(const char* fileName) {
     ReportIf(!dir::Exists(fileName));
     EngineImageDir* engine = new EngineImageDir();
     if (!LoadImageDir(engine, fileName)) {
-        engine->Release();
+        SafeEngineRelease(&engine);
         return nullptr;
     }
     return engine;
@@ -1348,6 +1350,10 @@ RectF EngineCbx::LoadMediabox(int pageNo) {
     if (!img.empty()) {
         Size size = BitmapSizeFromData(img);
         img.Free();
+        if (size.IsEmpty()) {
+            ;
+            logf("EngineCbx::LoadMediabox: empty media box for page: %d\n", pageNo);
+        }
         return RectF(0, 0, (float)size.dx, (float)size.dy);
     }
     img.Free();
@@ -1392,45 +1398,45 @@ EngineBase* EngineCbx::CreateFromFile(const char* path) {
     if (engine->LoadFromFile(path)) {
         return engine;
     }
-    engine->Release();
+    SafeEngineRelease(&engine);
     return nullptr;
 }
 
 EngineBase* EngineCbx::CreateFromStream(IStream* stream) {
     auto* archive = OpenZipArchive(stream, false);
     if (archive) {
-        auto* engine = new EngineCbx(archive);
+        EngineCbx* engine = new EngineCbx(archive);
         if (engine->LoadFromStream(stream)) {
             return engine;
         }
-        engine->Release();
+        SafeEngineRelease(&engine);
     }
 
     archive = OpenRarArchive(stream);
     if (archive) {
-        auto* engine = new EngineCbx(archive);
+        EngineCbx* engine = new EngineCbx(archive);
         if (engine->LoadFromStream(stream)) {
             return engine;
         }
-        engine->Release();
+        SafeEngineRelease(&engine);
     }
 
     archive = Open7zArchive(stream);
     if (archive) {
-        auto* engine = new EngineCbx(archive);
+        EngineCbx* engine = new EngineCbx(archive);
         if (engine->LoadFromStream(stream)) {
             return engine;
         }
-        engine->Release();
+        SafeEngineRelease(&engine);
     }
 
     archive = OpenTarArchive(stream);
     if (archive) {
-        auto* engine = new EngineCbx(archive);
+        EngineCbx* engine = new EngineCbx(archive);
         if (engine->LoadFromStream(stream)) {
             return engine;
         }
-        engine->Release();
+        SafeEngineRelease(&engine);
     }
 
     return nullptr;

@@ -28,6 +28,8 @@
 #endif
 #include <errno.h>
 
+static void fz_reap_dead_pages(fz_context *ctx, fz_document *doc);
+
 enum
 {
 	FZ_DOCUMENT_HANDLER_MAX = 32
@@ -220,13 +222,20 @@ fz_recognize_document_stream_content(fz_context *ctx, fz_stream *stream, const c
 }
 
 const fz_document_handler *
-do_recognize_document_stream_and_dir_content(fz_context *ctx, fz_stream **streamp, fz_archive *dir, const char *magic)
+do_recognize_document_stream_and_dir_content(fz_context *ctx, fz_stream **streamp, fz_archive *dir, const char *magic, void **handler_state, fz_document_recognize_state_free_fn **handler_free_state)
 {
 	fz_document_handler_context *dc;
 	int i, best_score, best_i;
+	void *best_state = NULL;
+	fz_document_recognize_state_free_fn *best_free_state = NULL;
 	const char *ext;
 	int drop_stream = 0;
 	fz_stream *stream = *streamp;
+
+	if (handler_state)
+		*handler_state = NULL;
+	if (handler_free_state)
+		*handler_free_state = NULL;
 
 	dc = ctx->handler;
 	if (dc->count == 0)
@@ -265,6 +274,8 @@ do_recognize_document_stream_and_dir_content(fz_context *ctx, fz_stream **stream
 		{
 			for (i = 0; i < dc->count; i++)
 			{
+				void *state = NULL;
+				fz_document_recognize_state_free_fn *free_state = NULL;
 				int score = 0;
 
 				if (dc->handler[i]->recognize_content)
@@ -273,7 +284,7 @@ do_recognize_document_stream_and_dir_content(fz_context *ctx, fz_stream **stream
 						fz_seek(ctx, stream, 0, SEEK_SET);
 					fz_try(ctx)
 					{
-						score = dc->handler[i]->recognize_content(ctx, dc->handler[i], stream, dir);
+						score = dc->handler[i]->recognize_content(ctx, dc->handler[i], stream, dir, &state, &free_state);
 					}
 					fz_catch(ctx)
 					{
@@ -287,7 +298,13 @@ do_recognize_document_stream_and_dir_content(fz_context *ctx, fz_stream **stream
 				{
 					best_score = score;
 					best_i = i;
+					if (best_free_state)
+						best_free_state(ctx, best_state);
+					best_free_state = free_state;
+					best_state = state;
 				}
+				else if (free_state)
+					free_state(ctx, state);
 			}
 			if (stream)
 				fz_seek(ctx, stream, 0, SEEK_SET);
@@ -330,6 +347,8 @@ do_recognize_document_stream_and_dir_content(fz_context *ctx, fz_stream **stream
 	}
 	fz_catch(ctx)
 	{
+		if (best_free_state)
+			best_free_state(ctx, best_state);
 		if (drop_stream)
 			fz_drop_stream(ctx, stream);
 		fz_rethrow(ctx);
@@ -345,6 +364,15 @@ do_recognize_document_stream_and_dir_content(fz_context *ctx, fz_stream **stream
 	/* Only if we found a handler, do we make our modified stream available to the
 	 * caller. */
 	*streamp = stream;
+
+	if (handler_state && handler_free_state)
+	{
+		*handler_state = best_state;
+		*handler_free_state = best_free_state;
+	}
+	else if (best_free_state)
+		best_free_state(ctx, best_state);
+
 	return dc->handler[best_i];
 }
 
@@ -354,7 +382,7 @@ fz_recognize_document_stream_and_dir_content(fz_context *ctx, fz_stream *stream,
 	fz_stream *stm = stream;
 	const fz_document_handler *res;
 
-	res = do_recognize_document_stream_and_dir_content(ctx, &stm, dir, magic);
+	res = do_recognize_document_stream_and_dir_content(ctx, &stm, dir, magic, NULL, NULL);
 
 	if (stm != stream)
 		fz_drop_stream(ctx, stm);
@@ -362,21 +390,25 @@ fz_recognize_document_stream_and_dir_content(fz_context *ctx, fz_stream *stream,
 	return res;
 }
 
-const fz_document_handler *fz_recognize_document_content(fz_context *ctx, const char *filename)
+static const fz_document_handler *do_recognize_document_content(fz_context *ctx, const char *filename, void **handler_state, fz_document_recognize_state_free_fn **handler_free_state)
 {
 	fz_stream *stream = NULL;
 	const fz_document_handler *handler = NULL;
 	fz_archive *zip = NULL;
+	fz_stream *stm;
 
 	if (fz_is_directory(ctx, filename))
 		zip = fz_open_directory(ctx, filename);
 	else
 		stream  = fz_open_file(ctx, filename);
 
+	stm = stream;
 	fz_try(ctx)
-		handler = fz_recognize_document_stream_and_dir_content(ctx, stream, zip, filename);
+		handler = do_recognize_document_stream_and_dir_content(ctx, &stm, zip, filename, handler_state, handler_free_state);
 	fz_always(ctx)
 	{
+		if (stm != stream)
+			fz_drop_stream(ctx, stm);
 		fz_drop_stream(ctx, stream);
 		fz_drop_archive(ctx, zip);
 	}
@@ -384,6 +416,11 @@ const fz_document_handler *fz_recognize_document_content(fz_context *ctx, const 
 		fz_rethrow(ctx);
 
 	return handler;
+}
+
+const fz_document_handler *fz_recognize_document_content(fz_context* ctx, const char* filename)
+{
+	return do_recognize_document_content(ctx, filename, NULL, NULL);
 }
 
 const fz_document_handler *
@@ -402,6 +439,8 @@ fz_open_accelerated_document_with_stream_and_dir(fz_context *ctx, const char *ma
 	const fz_document_handler *handler;
 	fz_stream *wrapped_stream = stream;
 	fz_document *ret;
+	void *state = NULL;
+	fz_document_recognize_state_free_fn *free_state = NULL;
 
 	if (stream == NULL && dir == NULL)
 		fz_throw(ctx, FZ_ERROR_ARGUMENT, "no document to open");
@@ -410,15 +449,17 @@ fz_open_accelerated_document_with_stream_and_dir(fz_context *ctx, const char *ma
 
 	/* If this finds a handler, then this might wrap stream. If it does, we reuse the wrapped one in
 	 * the open call (hence avoiding us having to 'file-back' a stream twice), but we must free it. */
-	handler = do_recognize_document_stream_and_dir_content(ctx, &wrapped_stream, dir, magic);
+	handler = do_recognize_document_stream_and_dir_content(ctx, &wrapped_stream, dir, magic, &state, &free_state);
 	if (!handler)
 		fz_throw(ctx, FZ_ERROR_UNSUPPORTED, "cannot find document handler for file type: '%s'", magic);
 	fz_try(ctx)
-		ret = handler->open(ctx, handler, wrapped_stream, accel, dir);
+		ret = handler->open(ctx, handler, wrapped_stream, accel, dir, state);
 	fz_always(ctx)
 	{
 		if (wrapped_stream != stream)
 			fz_drop_stream(ctx, wrapped_stream);
+		if (free_state && state)
+			free_state(ctx, state);
 	}
 	fz_catch(ctx)
 		fz_rethrow(ctx);
@@ -462,20 +503,16 @@ fz_document *
 fz_open_accelerated_document(fz_context *ctx, const char *filename, const char *accel)
 {
 	const fz_document_handler *handler;
-	fz_stream *file;
+	fz_stream *file = NULL;
 	fz_stream *afile = NULL;
 	fz_document *doc = NULL;
 	fz_archive *dir = NULL;
 	char dirname[PATH_MAX];
-
-	fz_var(afile);
+	void *state = NULL;
+	fz_document_recognize_state_free_fn *free_state = NULL;
 
 	if (filename == NULL)
 		fz_throw(ctx, FZ_ERROR_ARGUMENT, "no document to open");
-
-	handler = fz_recognize_document_content(ctx, filename);
-	if (!handler)
-		fz_throw(ctx, FZ_ERROR_UNSUPPORTED, "cannot find document handler for file: %s", filename);
 
 	if (fz_is_directory(ctx, filename))
 	{
@@ -492,10 +529,17 @@ fz_open_accelerated_document(fz_context *ctx, const char *filename, const char *
 		return doc;
 	}
 
-	file = fz_open_file(ctx, filename);
+	handler = do_recognize_document_content(ctx, filename, &state, &free_state);
+	if (!handler)
+		fz_throw(ctx, FZ_ERROR_UNSUPPORTED, "cannot find document handler for file: %s", filename);
+
+	fz_var(afile);
+	fz_var(file);
 
 	fz_try(ctx)
 	{
+		file = fz_open_file(ctx, filename);
+
 		if (accel)
 			afile = fz_open_file(ctx, accel);
 		if (handler->wants_dir)
@@ -503,10 +547,12 @@ fz_open_accelerated_document(fz_context *ctx, const char *filename, const char *
 			fz_dirname(dirname, filename, sizeof dirname);
 			dir = fz_open_directory(ctx, dirname);
 		}
-		doc = handler->open(ctx, handler, file, afile, dir);
+		doc = handler->open(ctx, handler, file, afile, dir, state);
 	}
 	fz_always(ctx)
 	{
+		if (free_state)
+			free_state(ctx, state);
 		fz_drop_archive(ctx, dir);
 		fz_drop_stream(ctx, afile);
 		fz_drop_stream(ctx, file);
@@ -572,6 +618,7 @@ fz_drop_document(fz_context *ctx, fz_document *doc)
 {
 	if (fz_drop_imp(ctx, doc, &doc->refs))
 	{
+		fz_reap_dead_pages(ctx, doc);
 		if (doc->open)
 			fz_warn(ctx, "There are still open pages in the document!");
 		if (doc->drop_document)
@@ -846,6 +893,28 @@ fz_document_output_intent(fz_context *ctx, fz_document *doc)
 	return NULL;
 }
 
+static void
+fz_reap_dead_pages(fz_context *ctx, fz_document *doc)
+{
+	fz_page *page;
+	fz_page *next_page;
+
+	for (page = doc->open; page; page = next_page)
+	{
+		next_page = page->next;
+		if (!page->doc)
+		{
+			if (page->next != NULL)
+				page->next->prev = page->prev;
+			if (page->prev != NULL)
+				*page->prev = page->next;
+			fz_free(ctx, page);
+			if (page == doc->open)
+				doc->open = next_page;
+		}
+	}
+}
+
 fz_page *
 fz_load_chapter_page(fz_context *ctx, fz_document *doc, int chapter, int number)
 {
@@ -856,17 +925,19 @@ fz_load_chapter_page(fz_context *ctx, fz_document *doc, int chapter, int number)
 
 	fz_ensure_layout(ctx, doc);
 
+	// Trigger reaping dead pages when we load a new page.
+	fz_reap_dead_pages(ctx, doc);
+
 	/* Protect modifications to the page list to cope with
 	 * destruction of pages on other threads. */
-	fz_lock(ctx, FZ_LOCK_ALLOC);
 	for (page = doc->open; page; page = page->next)
+	{
 		if (page->chapter == chapter && page->number == number)
 		{
-			fz_keep_page_locked(ctx, page);
-			fz_unlock(ctx, FZ_LOCK_ALLOC);
+			fz_keep_page(ctx, page);
 			return page;
 		}
-	fz_unlock(ctx, FZ_LOCK_ALLOC);
+	}
 
 	if (doc->load_page)
 	{
@@ -877,12 +948,10 @@ fz_load_chapter_page(fz_context *ctx, fz_document *doc, int chapter, int number)
 		/* Insert new page at the head of the list of open pages. */
 		if (!page->incomplete)
 		{
-			fz_lock(ctx, FZ_LOCK_ALLOC);
 			if ((page->next = doc->open) != NULL)
 				doc->open->prev = &page->next;
 			doc->open = page;
 			page->prev = &doc->open;
-			fz_unlock(ctx, FZ_LOCK_ALLOC);
 		}
 		return page;
 	}
@@ -1009,31 +1078,22 @@ fz_keep_page(fz_context *ctx, fz_page *page)
 	return fz_keep_imp(ctx, page, &page->refs);
 }
 
-fz_page *
-fz_keep_page_locked(fz_context *ctx, fz_page *page)
-{
-	return fz_keep_imp_locked(ctx, page, &page->refs);
-}
-
 void
 fz_drop_page(fz_context *ctx, fz_page *page)
 {
 	if (fz_drop_imp(ctx, page, &page->refs))
 	{
-		/* Remove page from the list of open pages */
-		fz_lock(ctx, FZ_LOCK_ALLOC);
-		if (page->next != NULL)
-			page->next->prev = page->prev;
-		if (page->prev != NULL)
-			*page->prev = page->next;
-		fz_unlock(ctx, FZ_LOCK_ALLOC);
+		fz_document *doc = page->doc;
 
 		if (page->drop_page)
 			page->drop_page(ctx, page);
 
-		fz_drop_document(ctx, page->doc);
+		// Mark the page as dead so we can reap the struct allocation later.
+		page->doc = NULL;
+		page->chapter = -1;
+		page->number = -1;
 
-		fz_free(ctx, page);
+		fz_drop_document(ctx, doc);
 	}
 }
 
@@ -1105,51 +1165,20 @@ void *
 fz_process_opened_pages(fz_context *ctx, fz_document *doc, fz_process_opened_page_fn *process_opened_page, void *state)
 {
 	fz_page *page;
-	fz_page *kept = NULL;
-	fz_page *dropme = NULL;
-	void *ret = NULL;
+	void *ret;
 
-	fz_var(kept);
-	fz_var(dropme);
-	fz_var(page);
-	fz_try(ctx)
+	for (page = doc->open; page != NULL; page = page->next)
 	{
-		/* We can only walk the page list while the alloc lock is taken, so gymnastics are required. */
-		/* Loop invariant: at any point where we might throw, kept != NULL iff we are unlocked. */
-		fz_lock(ctx, FZ_LOCK_ALLOC);
-		for (page = doc->open; ret == NULL && page != NULL; page = page->next)
-		{
-			/* Keep an extra reference to the page so that no other thread can remove it. */
-			kept = fz_keep_page_locked(ctx, page);
-			fz_unlock(ctx, FZ_LOCK_ALLOC);
-			/* Drop any extra reference we might still have to a previous page. */
-			fz_drop_page(ctx, dropme);
-			dropme = NULL;
+		// Skip dead pages.
+		if (page->doc == NULL)
+			continue;
 
-			ret = process_opened_page(ctx, page, state);
-
-			/* We can't drop kept here, because that would give us a race condition with
-			 * us taking the lock and hoping that 'page' would still be valid. So remember it
-			 * for dropping later. */
-			dropme = kept;
-			kept = NULL;
-			fz_lock(ctx, FZ_LOCK_ALLOC);
-		}
-		/* unlock (and final drop of dropme) happens in the always. */
-	}
-	fz_always(ctx)
-	{
-		if (kept == NULL)
-			fz_unlock(ctx, FZ_LOCK_ALLOC);
-		fz_drop_page(ctx, kept);
-		fz_drop_page(ctx, dropme);
-	}
-	fz_catch(ctx)
-	{
-		fz_rethrow(ctx);
+		ret = process_opened_page(ctx, page, state);
+		if (ret)
+			return ret;
 	}
 
-	return ret;
+	return NULL;
 }
 
 const char *

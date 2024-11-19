@@ -565,7 +565,7 @@ static void TocContextMenu(ContextMenuEvent* ev) {
     }
 
     WindowTab* tab = win->CurrentTab();
-    HMENU popup = BuildMenuFromMenuDef(menuDefContextToc, CreatePopupMenu(), nullptr);
+    HMENU popup = BuildMenuFromDef(menuDefContextToc, CreatePopupMenu(), nullptr);
 
     const char* path = nullptr;
     char* fileName = nullptr;
@@ -679,7 +679,7 @@ static bool ShouldCustomDraw(MainWindow* win) {
         return false;
     }
     Kind kind = dm->GetEngineType();
-    return kind == kindEngineMupdf || kind == kindEngineMulti;
+    return kind == kindEngineMupdf;
 }
 
 void OnTocCustomDraw(TreeView::CustomDrawEvent*);

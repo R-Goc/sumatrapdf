@@ -61,7 +61,7 @@ char* WStrToUtf8(const WCHAR* s, size_t cch, Allocator* a) {
 }
 
 // caller needs to free() the result
-WCHAR* StrToWStr(const char* src, uint codePage, int cbSrc) {
+WCHAR* StrCPToWStr(const char* src, uint codePage, int cbSrc) {
     ReportIf(!src);
     if (!src) {
         return nullptr;
@@ -72,6 +72,24 @@ WCHAR* StrToWStr(const char* src, uint codePage, int cbSrc) {
         return nullptr;
     }
     WCHAR* res = AllocArray<WCHAR>((size_t)requiredBufSize + 1);
+    if (!res) {
+        return nullptr;
+    }
+    MultiByteToWideChar(codePage, 0, src, cbSrc, res, requiredBufSize);
+    return res;
+}
+
+TempWStr StrCPToWStrTemp(const char* src, uint codePage, int cbSrc) {
+    ReportIf(!src);
+    if (!src) {
+        return nullptr;
+    }
+
+    int requiredBufSize = MultiByteToWideChar(codePage, 0, src, cbSrc, nullptr, 0);
+    if (0 == requiredBufSize) {
+        return nullptr;
+    }
+    WCHAR* res = AllocArrayTemp<WCHAR>((size_t)requiredBufSize + 1);
     if (!res) {
         return nullptr;
     }
@@ -96,14 +114,13 @@ TempStr ToMultiByteTemp(const char* src, uint codePageSrc, uint codePageDest) {
         return str::DupTemp(src);
     }
 
-    WCHAR* tmp = StrToWStr(src, codePageSrc);
+    TempWStr tmp = StrCPToWStrTemp(src, codePageSrc);
     if (!tmp) {
         return nullptr;
     }
     size_t tmpLen = str::Len(tmp);
     Allocator* a = GetTempAllocator();
     TempStr res = (TempStr)WStrToCodePage(codePageDest, tmp, tmpLen, a);
-    str::Free(tmp);
     return res;
 }
 
@@ -114,43 +131,56 @@ TempStr StrToUtf8Temp(const char* src, uint codePage) {
 // tries to convert a string in unknown encoding to utf8, as best
 // as it can
 // caller has to free() it
-char* UnknownToUtf8(const char* s) {
+char* UnknownToUtf8Temp(const char* s) {
     size_t len = str::Len(s);
 
     if (len < 3) {
-        return str::Dup(s, len);
+        return str::DupTemp(s, len);
     }
 
     if (str::StartsWith(s, UTF8_BOM)) {
-        return str::Dup(s + 3, len - 3);
+        return str::DupTemp(s + 3, len - 3);
     }
-
-    // TODO: UTF16BE_BOM
 
     if (str::StartsWith(s, UTF16_BOM)) {
         s += 2;
         int cch = (int)((len - 2) / 2);
-        return ToUtf8((const WCHAR*)s, cch);
+        // codeql complains about char* => WCHAR* cast
+        void* d = (void*)s;
+        return ToUtf8Temp((const WCHAR*)d, cch);
+    }
+
+    if (str::StartsWith(s, UTF16BE_BOM)) {
+        // convert from utf16 big endian to utf16
+        s += 2;
+        WCHAR* ws = str::ToWCHAR(s);
+        int n = str::Leni(ws);
+        char* tmp = (char*)s;
+        for (int i = 0; i < n; i++) {
+            int idx = i * 2;
+            std::swap(tmp[idx], tmp[idx + 1]);
+        }
+        return ToUtf8Temp(ws);
     }
 
     // if s is valid utf8, leave it alone
     const u8* tmp = (const u8*)s;
     if (isLegalUTF8String(&tmp, tmp + len)) {
-        return str::Dup(s, len);
+        return str::DupTemp(s, len);
     }
 
-    AutoFreeWStr uni = strconv::AnsiToWStr(s, len);
-    return ToUtf8(uni.Get());
+    TempWStr ws = strconv::AnsiToWStrTemp(s, len);
+    auto res = ToUtf8Temp(ws);
+    return res;
 }
 
-WCHAR* AnsiToWStr(const char* src, size_t cbLen) {
-    return StrToWStr(src, CP_ACP, (int)cbLen);
+TempWStr AnsiToWStrTemp(const char* src, size_t cbLen) {
+    return StrCPToWStrTemp(src, CP_ACP, (int)cbLen);
 }
 
 char* AnsiToUtf8(const char* src, size_t cbLen) {
-    WCHAR* ws = StrToWStr(src, CP_ACP, (int)cbLen);
+    TempWStr ws = StrCPToWStrTemp(src, CP_ACP, (int)cbLen);
     char* res = ToUtf8(ws);
-    str::Free(ws);
     return res;
 }
 

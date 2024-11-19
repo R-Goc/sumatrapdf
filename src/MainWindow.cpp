@@ -74,13 +74,13 @@ Vec<MainWindow*> gWindows;
 StaticLinkInfo::StaticLinkInfo(Rect rect, const char* target, const char* infotip) {
     this->rect = rect;
     this->target = str::Dup(target);
-    this->infotip = str::Dup(infotip);
+    this->tooltip = str::Dup(infotip);
 }
 
 StaticLinkInfo::StaticLinkInfo(const StaticLinkInfo& other) {
     rect = other.rect;
     str::ReplaceWithCopy(&target, other.target);
-    str::ReplaceWithCopy(&infotip, other.infotip);
+    str::ReplaceWithCopy(&tooltip, other.tooltip);
 }
 
 StaticLinkInfo& StaticLinkInfo::operator=(const StaticLinkInfo& other) {
@@ -89,13 +89,13 @@ StaticLinkInfo& StaticLinkInfo::operator=(const StaticLinkInfo& other) {
     }
     rect = other.rect;
     str::ReplaceWithCopy(&target, other.target);
-    str::ReplaceWithCopy(&infotip, other.infotip);
+    str::ReplaceWithCopy(&tooltip, other.tooltip);
     return *this;
 }
 
 StaticLinkInfo::~StaticLinkInfo() {
     str::Free(target);
-    str::Free(infotip);
+    str::Free(tooltip);
 }
 
 MainWindow::MainWindow(HWND hwnd) {
@@ -288,7 +288,7 @@ void MainWindow::UpdateCanvasSize() {
 
 Size MainWindow::GetViewPortSize() const {
     Size size = canvasRc.Size();
-    ReportIf(size.IsEmpty());
+    ReportDebugIf(size.IsEmpty());
 
     DWORD style = GetWindowLong(hwndCanvas, GWL_STYLE);
     if ((style & WS_VSCROLL)) {
@@ -302,6 +302,7 @@ Size MainWindow::GetViewPortSize() const {
 }
 
 void MainWindow::RedrawAll(bool update) const {
+    // logf("MainWindow::RedrawAll, update: %d  RenderCache:\n", (int)update);
     InvalidateRect(this->hwndCanvas, nullptr, false);
     if (update) {
         UpdateWindow(this->hwndCanvas);
@@ -309,6 +310,7 @@ void MainWindow::RedrawAll(bool update) const {
 }
 
 void MainWindow::RedrawAllIncludingNonClient() const {
+    // logf("MainWindow::RedrawAllIncludingNonClient RenderCache:\n");
     InvalidateRect(this->hwndCanvas, nullptr, false);
     RedrawWindow(this->hwndCanvas, nullptr, nullptr, RDW_FRAME | RDW_INVALIDATE);
 }
@@ -349,10 +351,10 @@ void MainWindow::Focus() const {
     // set focus to an owned modal dialog if there is one
     HWND hwnd = FindModalOwnedBy(hwndFrame);
     if (hwnd != nullptr) {
-        SetFocus(hwnd);
+        HwndSetFocus(hwnd);
         return;
     }
-    SetFocus(hwndFrame);
+    HwndSetFocus(hwndFrame);
 }
 
 void MainWindow::ToggleZoom() const {
@@ -655,12 +657,10 @@ void UpdateControlsColors(MainWindow* win) {
 
     {
         auto tocTreeView = win->tocTreeView;
-        tocTreeView->SetBackgroundColor(bgCol);
-        tocTreeView->SetTextColor(txtCol);
+        tocTreeView->SetColors(txtCol, bgCol);
 
-        win->tocLabelWithClose->SetBgCol(bgCol);
-        win->tocLabelWithClose->SetTextCol(txtCol);
-        win->sidebarSplitter->SetBackgroundColor(splitterCol);
+        win->tocLabelWithClose->SetColors(txtCol, bgCol);
+        win->sidebarSplitter->SetColors(kColorNoChange, splitterCol);
         SetWindowExStyle(tocTreeView->hwnd, WS_EX_STATICEDGE, !flatTreeWnd);
         uint flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED;
         SetWindowPos(tocTreeView->hwnd, nullptr, 0, 0, 0, 0, flags);
@@ -668,13 +668,9 @@ void UpdateControlsColors(MainWindow* win) {
 
     auto favTreeView = win->favTreeView;
     if (favTreeView) {
-        favTreeView->SetBackgroundColor(bgCol);
-        favTreeView->SetTextColor(txtCol);
-
-        win->favLabelWithClose->SetBgCol(bgCol);
-        win->favLabelWithClose->SetTextCol(txtCol);
-
-        win->favSplitter->SetBackgroundColor(splitterCol);
+        favTreeView->SetColors(txtCol, bgCol);
+        win->favLabelWithClose->SetColors(txtCol, bgCol);
+        win->favSplitter->SetColors(kColorNoChange, splitterCol);
 
         SetWindowExStyle(favTreeView->hwnd, WS_EX_STATICEDGE, !flatTreeWnd);
         uint flags = SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED;
@@ -690,7 +686,7 @@ void UpdateControlsColors(MainWindow* win) {
 void ClearFindBox(MainWindow* win) {
     HWND hwndFocused = GetFocus();
     if (hwndFocused == win->hwndFindEdit) {
-        SetFocus(win->hwndFrame);
+        HwndSetFocus(win->hwndFrame);
     }
     HwndSetText(win->hwndFindEdit, "");
 }
@@ -710,6 +706,9 @@ bool IsMainWindowValid(MainWindow* win) {
 }
 
 MainWindow* FindMainWindowByHwnd(HWND hwnd) {
+    if (!::IsWindow(hwnd)) {
+        return nullptr;
+    }
     for (MainWindow* win : gWindows) {
         if ((win->hwndFrame == hwnd) || ::IsChild(win->hwndFrame, hwnd)) {
             return win;
@@ -740,4 +739,16 @@ MainWindow* FindMainWindowByController(DocController* ctrl) {
         }
     }
     return nullptr;
+}
+
+// temporarily highlight this tab
+void HighlightTab(MainWindow* win, WindowTab* tab) {
+    if (!win) {
+        return;
+    }
+    int idx = -1;
+    if (tab) {
+        idx = win->GetTabIdx(tab);
+    }
+    win->tabsCtrl->SetHighlighted(idx);
 }

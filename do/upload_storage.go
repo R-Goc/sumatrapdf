@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -306,7 +305,7 @@ func verifyBuildNotInStorageMust(mc *minioutil.Client, buildType BuildType) {
 }
 
 func UploadDir(c *minioutil.Client, dirRemote string, dirLocal string, public bool) error {
-	files, err := ioutil.ReadDir(dirLocal)
+	files, err := os.ReadDir(dirLocal)
 	if err != nil {
 		return err
 	}
@@ -527,10 +526,13 @@ func uploadToStorage(buildType BuildType) {
 func uploadLogView() {
 	logf("uploadLogView\n")
 	ver := extractLogViewVersion()
-	path := filepath.Join("tools", "logview-win", "build", "bin", "logview.exe")
-	panicIf(!fileExists(path), "file '%s' doesn't exist", path)
-	remotePath := "software/logview/rel/" + fmt.Sprintf("logview-%s.exe", ver)
-	mc := newMinioBackblazeClient()
+	path := filepath.Join("tools", "logview", "build", "bin", "logview.exe")
+	if !fileExists(path) {
+		logf("file '%s' doesn't exist\n", path)
+		os.Exit(1)
+	}
+	remotePath := fmt.Sprintf("software/logview/rel/logview-%s.exe", ver)
+	mc := newMinioR2Client()
 	if mc.Exists(remotePath) {
 		logf("%s (%s) already uploaded\n", remotePath, mc.URLForPath(remotePath))
 		return

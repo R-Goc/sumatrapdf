@@ -26,7 +26,7 @@ Our ui thread isn't so we create our own thread and run code that
 calls ReadDirectoryChangesW() on that thread via QueueUserAPC().
 
 gWatchedDirs and gWsatchedFiles are shared between the main thread and
-worker thread so must be protected via gThreadCritSec.
+worker thread so must be protected via gFileWatcherMutex.
 
 ReadDirectChangesW() doesn't always work for files on network drives,
 so for those files, we do manual checks, by using a timeout to
@@ -45,7 +45,7 @@ TODO:
   - try to handle short file names as well: http://blogs.msdn.com/b/ericgu/archive/2005/10/07/478396.aspx
     but how to test it?
 
-  - I could try to remove the need for gThreadCritSec by queing all code
+- I could try to remove the need for gFileWatcherMutex by queing all code
     that touches gWatchedDirs/gWatchedFiles onto a thread via APC, but that's
     probably an overkill
 */
@@ -101,7 +101,7 @@ static HANDLE gThreadControlHandle = nullptr;
 
 // protects data structures shared between ui thread and file
 // watcher thread i.e. gWatchedDirs, gWatchedFiles
-static CRITICAL_SECTION gThreadCritSec;
+static CRITICAL_SECTION gFileWatcherMutex;
 
 static WatchedDir* gWatchedDirs = nullptr;
 static WatchedFile* gWatchedFiles = nullptr;
@@ -204,7 +204,7 @@ const char* GetFileActionName(int actionId) {
 }
 
 static void CALLBACK ReadDirectoryChangesNotification(DWORD errCode, DWORD bytesTransfered, LPOVERLAPPED overlapped) {
-    ScopedCritSec cs(&gThreadCritSec);
+    ScopedCritSec cs(&gFileWatcherMutex);
 
     OverlappedEx* over = (OverlappedEx*)overlapped;
     WatchedDir* wd = (WatchedDir*)over->data;
@@ -239,7 +239,7 @@ static void CALLBACK ReadDirectoryChangesNotification(DWORD errCode, DWORD bytes
         // by writing to a .tmp file first and then moving that file in place
         // (the latter only yields a RENAMED action with the expected file name)
         const char* actionName = GetFileActionName(notify->Action);
-        logf("ReadDirectoryChangesNotification: %s '%s'\n", actionName, fileName);
+        // logf("ReadDirectoryChangesNotification: %s '%s'\n", actionName, fileName);
         if (notify->Action == FILE_ACTION_ADDED || notify->Action == FILE_ACTION_MODIFIED ||
             notify->Action == FILE_ACTION_RENAMED_NEW_NAME) {
             AppendIfNotExists(&changedFiles, fileName);
@@ -289,7 +289,7 @@ static void StartMonitoringDirForChanges(WatchedDir* wd) {
 }
 
 static DWORD GetTimeoutInMs() {
-    ScopedCritSec cs(&gThreadCritSec);
+    ScopedCritSec cs(&gFileWatcherMutex);
     for (WatchedFile* wf = gWatchedFiles; wf; wf = wf->next) {
         if (wf->isManualCheck) {
             return FILEWATCH_DELAY_IN_MS;
@@ -299,7 +299,7 @@ static DWORD GetTimeoutInMs() {
 }
 
 static void RunManualChecks() {
-    ScopedCritSec cs(&gThreadCritSec);
+    ScopedCritSec cs(&gFileWatcherMutex);
 
     for (WatchedFile* wf = gWatchedFiles; wf; wf = wf->next) {
         if (!wf->isManualCheck) {
@@ -390,7 +390,7 @@ static WatchedDir* NewWatchedDir(const char* dirPath) {
     wd->hDir = hDir;
     wd->dirPath = str::Dup(dirPath);
 
-    ListInsert(&gWatchedDirs, wd);
+    ListInsertFront(&gWatchedDirs, wd);
     return wd;
 }
 
@@ -418,7 +418,7 @@ static WatchedFile* NewWatchedFile(const char* filePath, const Func0& onFileChan
     wf->watchedDir = wd;
     wf->isManualCheck = isManualCheck;
 
-    ListInsert(&gWatchedFiles, wf);
+    ListInsertFront(&gWatchedFiles, wf);
 
     if (wf->isManualCheck) {
         GetFileState(filePath, &wf->fileState);
@@ -452,7 +452,7 @@ WatchedFile* FileWatcherSubscribe(const char* path, const Func0& onFileChangedCb
         logf("FileWatcherSubscribe: path='%s' doesn't exist\n", path);
         return nullptr;
     }
-    if (IsProcess32()) {
+    if (false && IsProcess32()) {
         // https://github.com/sumatrapdfreader/sumatrapdf/issues/4111
         logf("FileWatcherSubscribe: not starting a file watcher thread due to 32-bit miscompilation\n");
         return nullptr;
@@ -460,14 +460,14 @@ WatchedFile* FileWatcherSubscribe(const char* path, const Func0& onFileChangedCb
 
     if (!gThreadHandle) {
         logf("FileWatcherSubscribe: starting a thread\n");
-        InitializeCriticalSection(&gThreadCritSec);
+        InitializeCriticalSection(&gFileWatcherMutex);
         gThreadControlHandle = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 
-        auto fn = MkFuncVoid(FileWatcherThread);
+        auto fn = MkFunc0Void(FileWatcherThread);
         gThreadHandle = StartThread(fn, "FileWatcherThread");
     }
 
-    ScopedCritSec cs(&gThreadCritSec);
+    ScopedCritSec cs(&gFileWatcherMutex);
     return NewWatchedFile(path, onFileChangedCb);
 }
 
@@ -535,7 +535,7 @@ void FileWatcherUnsubscribe(WatchedFile* wf) {
     }
     ReportIf(!gThreadHandle);
 
-    ScopedCritSec cs(&gThreadCritSec);
+    ScopedCritSec cs(&gFileWatcherMutex);
 
     RemoveWatchedFile(wf);
 }

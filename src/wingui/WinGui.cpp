@@ -19,8 +19,6 @@
 
 Kind kindWnd = "wnd";
 
-constexpr bool gLogTabs = false;
-
 #define WIN_MESSAGES(V)          \
     V(WM_CREATE)                 \
     V(WM_DESTROY)                \
@@ -166,7 +164,6 @@ TempStr WinMsgNameTemp(UINT msg) {
 // TODO:
 // - if layout is set, do layout on WM_SIZE using LayoutToSize
 
-// window_map.h / window_map.cpp
 struct WindowToHwnd {
     Wnd* window = nullptr;
     HWND hwnd = nullptr;
@@ -184,7 +181,13 @@ static Wnd* WindowMapGetWindow(HWND hwnd) {
 }
 
 static void WindowMapAdd(HWND hwnd, Wnd* w) {
-    if (!hwnd || (WindowMapGetWindow(hwnd) != nullptr)) {
+    if (!hwnd) {
+        ReportIf(!hwnd);
+        return;
+    }
+    Wnd* existing = WindowMapGetWindow(hwnd);
+    if (existing) {
+        ReportIf(existing);
         return;
     }
     WindowToHwnd el = {w, hwnd};
@@ -227,33 +230,33 @@ const DWORD WM_TASKBARBUTTONCREATED = ::RegisterWindowMessage(L"TaskbarButtonCre
 
 const WCHAR* kDefaultClassName = L"SumatraWgDefaultWinClass";
 
-static LRESULT CALLBACK StaticWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+static LRESULT CALLBACK WndWindowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     // seen crashes in TabCtrl::WndProc() which might be caused by handling drag&drop messages
     // after parent window was destroyed. maybe this will fix it
     if (!IsWindow(hwnd)) {
         return 0;
     }
 
-    Wnd* window = WindowMapGetWindow(hwnd);
+    Wnd* wnd = WindowMapGetWindow(hwnd);
 
     if (msg == WM_NCCREATE) {
         CREATESTRUCT* cs = (CREATESTRUCT*)(lparam);
-        ReportIf(window);
-        window = (Wnd*)(cs->lpCreateParams);
-        window->hwnd = hwnd;
-        WindowMapAdd(hwnd, window);
+        ReportIf(wnd);
+        wnd = (Wnd*)(cs->lpCreateParams);
+        wnd->hwnd = hwnd;
+        WindowMapAdd(hwnd, wnd);
     }
 
-    if (window) {
-        return window->WndProc(hwnd, msg, wparam, lparam);
+    if (wnd) {
+        return wnd->WndProc(hwnd, msg, wparam, lparam);
     } else {
         return ::DefWindowProc(hwnd, msg, wparam, lparam);
     }
 }
 
-static LRESULT CALLBACK StaticWindowProcSubclassed(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR subclassId,
-                                                   DWORD_PTR data) {
-    return StaticWindowProc(hwnd, msg, wp, lp);
+static LRESULT CALLBACK WndSubclassedWindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR subclassId,
+                                                DWORD_PTR data) {
+    return WndWindowProc(hwnd, msg, wp, lp);
 }
 
 Wnd::Wnd() {
@@ -264,7 +267,7 @@ Wnd::Wnd() {
 Wnd::~Wnd() {
     Destroy();
     delete layout;
-    DeleteBrush(backgroundColorBrush);
+    DeleteBrushSafe(&bgBrush);
 }
 
 Kind Wnd::GetKind() {
@@ -276,7 +279,7 @@ void Wnd::SetText(const char* s) {
         s = "";
     }
     HwndSetText(hwnd, s);
-    HwndInvalidate(hwnd); // TODO: move inside HwndSetText()?
+    HwndRepaintNow(hwnd); // TODO: move inside HwndSetText()?
 }
 
 TempStr Wnd::GetTextTemp() {
@@ -372,14 +375,6 @@ int Wnd::OnCreate(CREATESTRUCT*) {
     return 0;
 }
 
-// Called when the background of the window's client area needs to be erased.
-// Override this function in your derived class to perform drawing tasks.
-// Return Value: Return FALSE to also permit default erasure of the background
-//               Return TRUE to prevent default erasure of the background
-bool Wnd::OnEraseBkgnd(HDC) {
-    return false;
-}
-
 void Wnd::OnContextMenu(Point ptScreen) {
     if (!onContextMenu.IsValid()) {
         return;
@@ -455,7 +450,7 @@ LRESULT Wnd::OnNotifyReflect(WPARAM, LPARAM) {
 }
 
 void Wnd::OnPaint(HDC hdc, PAINTSTRUCT* ps) {
-    auto bgBrush = backgroundColorBrush;
+    auto bgBrush = BackgroundBrush();
     if (bgBrush != nullptr) {
         FillRect(hdc, &ps->rcPaint, bgBrush);
     }
@@ -688,12 +683,12 @@ LRESULT Wnd::WndProcDefault(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     }
 
     if (msg == WM_DESTROY) {
-        if (onDestroy) {
-            WmDestroyEvent ev;
+        if (onDestroy.IsValid()) {
+            DestroyEvent ev;
             ev.e = &e;
-            onDestroy(ev);
+            onDestroy.Call(&ev);
         }
-        // Note: Some controls require default processing.
+        // no break because some controls require default processing.
     }
 
     switch (msg) {
@@ -788,15 +783,6 @@ LRESULT Wnd::WndProcDefault(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
             // No more drawing required
             return 0;
         }
-
-        case WM_ERASEBKGND: {
-            HDC dc = (HDC)(wparam);
-            BOOL preventErasure;
-
-            preventErasure = OnEraseBkgnd(dc);
-            if (preventErasure)
-                return TRUE;
-        } break;
 
         // A set of messages to be reflected back to the control that generated them.
         case WM_CTLCOLORBTN:
@@ -948,7 +934,7 @@ static void WndRegisterClass(const WCHAR* className) {
     wc.style = CS_DBLCLKS;
     wc.hInstance = inst;
     wc.lpszClassName = className;
-    wc.lpfnWndProc = StaticWindowProc;
+    wc.lpfnWndProc = WndWindowProc;
     wc.hCursor = ::LoadCursor(nullptr, IDC_ARROW);
     wc.hbrBackground = reinterpret_cast<HBRUSH>(::GetStockObject(WHITE_BRUSH));
     ATOM atom = ::RegisterClassExW(&wc);
@@ -1060,7 +1046,7 @@ HWND Wnd::CreateCustom(const CreateCustomArgs& args) {
     }
 
     // trigger creating a backgroundBrush
-    SetBackgroundColor(args.bgColor);
+    SetColors(kColorNoChange, args.bgColor);
     if (args.icon) {
         HwndSetIcon(hwnd, args.icon);
     }
@@ -1090,7 +1076,7 @@ void Wnd::Subclass() {
     WindowMapAdd(hwnd, this);
 
     subclassId = NextSubclassId();
-    BOOL ok = SetWindowSubclass(hwnd, StaticWindowProcSubclassed, subclassId, (DWORD_PTR)this);
+    BOOL ok = SetWindowSubclass(hwnd, WndSubclassedWindowProc, subclassId, (DWORD_PTR)this);
     ReportIf(!ok);
 }
 
@@ -1098,7 +1084,7 @@ void Wnd::UnSubclass() {
     if (!subclassId) {
         return;
     }
-    RemoveWindowSubclass(hwnd, StaticWindowProcSubclassed, subclassId);
+    RemoveWindowSubclass(hwnd, WndSubclassedWindowProc, subclassId);
     subclassId = 0;
 }
 
@@ -1122,23 +1108,25 @@ bool Wnd::IsEnabled() const {
     return tobool(enabled);
 }
 
-void Wnd::SetBackgroundColor(COLORREF col) {
-    if (col == kColorNoChange) {
+void Wnd::SetColors(COLORREF textCol, COLORREF bgCol) {
+    if (textCol != kColorNoChange) {
+        this->textColor = textCol;
+    }
+    if (bgCol == kColorNoChange) {
         return;
     }
-    backgroundColor = col;
-    if (backgroundColorBrush != nullptr) {
-        DeleteBrush(backgroundColorBrush);
-        backgroundColorBrush = nullptr;
+    this->bgColor = bgCol;
+    DeleteBrushSafe(&bgBrush); // will be re-created in BackgroundBrush()
+    HwndScheduleRepaint(hwnd);
+}
+
+HBRUSH Wnd::BackgroundBrush() {
+    if (bgBrush == nullptr) {
+        if (bgColor != kColorUnset) {
+            bgBrush = CreateSolidBrush(bgColor);
+        }
     }
-    if (backgroundColor != kColorUnset) {
-        backgroundColorBrush = CreateSolidBrush(backgroundColor);
-    }
-    // can be set before we create the window
-    if (!hwnd) {
-        return;
-    }
-    InvalidateRect(hwnd, nullptr, FALSE);
+    return bgBrush;
 }
 
 void Wnd::SuspendRedraw() const {
@@ -1157,10 +1145,9 @@ bool PreTranslateMessage(MSG& msg) {
         return false;
     }
     for (HWND hwnd = msg.hwnd; hwnd != nullptr; hwnd = ::GetParent(hwnd)) {
-        if (auto window = WindowMapGetWindow(hwnd)) {
-            if (window->PreTranslateMessage(msg)) {
-                return true;
-            }
+        auto wnd = WindowMapGetWindow(hwnd);
+        if (wnd && wnd->PreTranslateMessage(msg)) {
+            return true;
         }
     }
     return false;
@@ -1209,42 +1196,24 @@ Size Static::GetIdealSize() {
 
 bool Static::OnCommand(WPARAM wparam, LPARAM lparam) {
     auto code = HIWORD(wparam);
-    if (code == STN_CLICKED && onClicked.IsValid()) {
-        onClicked.Call();
+    if (code == STN_CLICKED && onClick.IsValid()) {
+        onClick.Call();
         return true;
     }
     return false;
 }
 
-#if 0
-void Handle_WM_CTLCOLORSTATIC(void* user, WndEvent* ev) {
-    auto w = (StaticCtrl*)user;
-    uint msg = ev->msg;
-    ReportIf(msg != WM_CTLCOLORSTATIC);
-    HDC hdc = (HDC)ev->wp;
-    if (w->textColor != kColorUnset) {
-        SetTextColor(hdc, w->textColor);
-    }
-    // the brush we return is the background color for the whole
-    // area of static control
-    // SetBkColor() is just for the part where the text is
-    // SetBkMode(hdc, TRANSPARENT) sets the part of the text to transparent
-    // (but the whole background is still controlled by the bruhs
-    auto bgBrush = w->backgroundColorBrush;
-    if (bgBrush != nullptr) {
-        SetBkColor(hdc, w->backgroundColor);
-        ev->result = (LRESULT)bgBrush;
-    } else {
-        SetBkMode(hdc, TRANSPARENT);
-    }
-    ev->didHandle = true;
-}
-#endif
-
-LRESULT Static::OnMessageReflect(UINT msg, WPARAM wparam, LPARAM lparam) {
+LRESULT Static::OnMessageReflect(UINT msg, WPARAM wp, LPARAM lparam) {
     if (msg == WM_CTLCOLORSTATIC) {
-        // TODO: implement me
-        return 0;
+        HDC hdc = (HDC)wp;
+        if (!IsSpecialColor(textColor)) {
+            SetTextColor(hdc, textColor);
+        }
+        if (!IsSpecialColor(bgColor)) {
+            SetBkColor(hdc, bgColor);
+        }
+        auto br = BackgroundBrush();
+        return (LRESULT)br;
     }
     return 0;
 }
@@ -1262,8 +1231,8 @@ Button::Button() {
 bool Button::OnCommand(WPARAM wparam, LPARAM lparam) {
     auto code = HIWORD(wparam);
     if (code == BN_CLICKED) {
-        if (onClicked.IsValid()) {
-            onClicked.Call();
+        if (onClick.IsValid()) {
+            onClick.Call();
             return true;
         }
     }
@@ -1311,13 +1280,13 @@ Size Button::SetTextAndResize(const WCHAR* s) {
 }
 #endif
 
-Button* CreateButton(HWND parent, const char* s, const Func0& onClicked) {
+Button* CreateButton(HWND parent, const char* s, const Func0& onClick) {
     Button::CreateArgs args;
     args.parent = parent;
     args.text = s;
 
     auto b = new Button();
-    b->onClicked = onClicked;
+    b->onClick = onClick;
     b->Create(args);
     return b;
 }
@@ -1663,6 +1632,9 @@ HWND Edit::Create(const CreateArgs& editArgs) {
     if (editArgs.cueText) {
         EditSetCueText(hwnd, editArgs.cueText);
     }
+    if (editArgs.text) {
+        SetText(editArgs.text);
+    }
     return hwnd;
 }
 
@@ -1736,30 +1708,18 @@ bool Edit::OnCommand(WPARAM wparam, LPARAM lparam) {
     return false;
 }
 
-#if 0
-// https://docs.microsoft.com/en-us/windows/win32/controls/wm-ctlcoloredit
-static void Handle_WM_CTLCOLOREDIT(void* user, WndEvent* ev) {
-    auto w = (EditCtrl*)user;
-    ReportIf(ev->msg != WM_CTLCOLOREDIT);
-    HWND hwndCtrl = (HWND)ev->lp;
-    ReportIf(hwndCtrl != w->hwnd);
-    if (w->bgBrush == nullptr) {
-        return;
-    }
-    HDC hdc = (HDC)ev->wp;
-    // SetBkColor(hdc, w->bgCol);
-    SetBkMode(hdc, TRANSPARENT);
-    if (w->textColor != kColorUnset) {
-        ::SetTextColor(hdc, w->textColor);
-    }
-    ev->didHandle = true;
-    ev->result = (INT_PTR)w->bgBrush;
-}
-#endif
-
-LRESULT Edit::OnMessageReflect(UINT msg, WPARAM wparam, LPARAM lparam) {
+LRESULT Edit::OnMessageReflect(UINT msg, WPARAM wp, LPARAM lparam) {
     if (msg == WM_CTLCOLOREDIT) {
-        // TOOD: return brush
+        HDC hdc = (HDC)wp;
+        if (!IsSpecialColor(textColor)) {
+            SetTextColor(hdc, textColor);
+        }
+        if (!IsSpecialColor(bgColor)) {
+            SetBkColor(hdc, bgColor);
+            SetBkMode(hdc, TRANSPARENT);
+        }
+        auto br = BackgroundBrush();
+        return (LRESULT)br;
         return 0;
     }
     return 0;
@@ -1883,11 +1843,18 @@ bool ListBox::OnCommand(WPARAM wparam, LPARAM lparam) {
     return false;
 }
 
-LRESULT ListBox::OnMessageReflect(UINT msg, WPARAM wparam, LPARAM lparam) {
+LRESULT ListBox::OnMessageReflect(UINT msg, WPARAM wp, LPARAM lparam) {
     // https://docs.microsoft.com/en-us/windows/win32/controls/wm-ctlcolorlistbox
     if (msg == WM_CTLCOLORLISTBOX) {
-        // TOOD: implement me
-        return 0;
+        HDC hdc = (HDC)wp;
+        if (!IsSpecialColor(textColor)) {
+            SetTextColor(hdc, textColor);
+        }
+        if (!IsSpecialColor(bgColor)) {
+            SetBkColor(hdc, bgColor);
+        }
+        auto br = BackgroundBrush();
+        return (LRESULT)br;
     }
     return 0;
 }
@@ -2313,10 +2280,11 @@ HWND Splitter::Create(const CreateArgs& args) {
 
     isLive = args.isLive;
     type = args.type;
-    backgroundColor = args.backgroundColor;
-    if (backgroundColor == kColorUnset) {
-        backgroundColor = GetSysColor(COLOR_BTNFACE);
+    auto bgCol = args.backgroundColor;
+    if (bgCol == kColorUnset) {
+        bgCol = GetSysColor(COLOR_BTNFACE);
     }
+    SetColors(kColorUnset, bgCol);
 
     bmp = CreateBitmap(8, 8, 1, 1, dotPatternBmp);
     ReportIf(!bmp);
@@ -2390,7 +2358,7 @@ LRESULT Splitter::WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     }
 
     if (WM_PAINT == msg) {
-        OnSplitterPaint(hwnd, backgroundColor);
+        OnSplitterPaint(hwnd, bgColor);
         return 0;
     }
 
@@ -2520,7 +2488,6 @@ HWND TreeView::Create(const CreateArgs& argsIn) {
     // must be done at the end. Doing  SetWindowStyle() sends bogus (?)
     // TVN_ITEMCHANGED notification. As an alternative we could ignore TVN_ITEMCHANGED
     // if hItem doesn't point to an TreeItem
-    // Subclass();
 
     return hwnd;
 }
@@ -2681,16 +2648,18 @@ bool TreeView::SelectItem(TreeItem ti) {
     return ok == TRUE;
 }
 
-void TreeView::SetBackgroundColor(COLORREF bgCol) {
-    backgroundColor = bgCol;
-    TreeView_SetBkColor(hwnd, bgCol);
-}
-
-void TreeView::SetTextColor(COLORREF col) {
-#if 0 // TODO: do I need this?
-    this->textColor = col;
-#endif
-    TreeView_SetTextColor(this->hwnd, col);
+void TreeView::SetColors(COLORREF textCol, COLORREF bgCol) {
+    Wnd::SetColors(textCol, bgCol);
+    if (!IsSpecialColor(textCol)) {
+        TreeView_SetTextColor(hwnd, textCol);
+    } else if (textColor == kColorUnset) {
+        TreeView_SetTextColor(hwnd, CLR_DEFAULT);
+    }
+    if (!IsSpecialColor(bgCol)) {
+        TreeView_SetBkColor(hwnd, bgCol);
+    } else if (bgCol == kColorUnset) {
+        TreeView_SetBkColor(hwnd, CLR_DEFAULT);
+    }
 }
 
 void TreeView::ExpandAll() {
@@ -3174,13 +3143,21 @@ constexpr bool closeCircleEnabled = true;
 constexpr float closePenWidth = 1.0f;
 constexpr COLORREF circleColor = RgbToCOLORREF(0xC13535);
 
+bool TabsCtrl::IsValidIdx(int idx) {
+    return idx >= 0 && idx < TabCount();
+}
+
 void TabsCtrl::Paint(HDC hdc, RECT& rc) {
     TabsCtrl::MouseState tabState = TabStateFromMousePosition(lastMousePos);
     int tabUnderMouse = tabState.tabIdx;
     bool overClose = tabState.overClose && tabState.tabInfo->canClose;
-    int tabSelected = GetSelected();
+    int selectedIdx = GetSelected();
+    if (IsValidIdx(tabForceShowSelected)) {
+        selectedIdx = tabForceShowSelected;
+    }
+
     // logfa("TabsCtrl::Paint, underMouse: %d, overClose: %d, selected: %d, rc: pos: (%d, %d), size: (%d, %d)\n",
-    // tabUnderMouse, (int)overClose, tabSelected, rc.left, rc.top, RectDx(rc), RectDy(rc));
+    //  tabUnderMouse, (int)overClose, selectedIdx, rc.left, rc.top, RectDx(rc), RectDy(rc));
 
     bool isTranslucentMode = inTitleBar && dwm::IsCompositionEnabled();
     if (isTranslucentMode) {
@@ -3227,7 +3204,7 @@ void TabsCtrl::Paint(HDC hdc, RECT& rc) {
     for (int i = 0; i < n; i++) {
         // Get the correct colors based on the state and the current theme
         tabBgCol = tabBgBackground;
-        if (tabSelected == i) {
+        if (selectedIdx == i) {
             tabBgCol = tabBgSelected;
         } else if (tabUnderMouse == i) {
             tabBgCol = tabBgHighlight;
@@ -3320,6 +3297,26 @@ TabsCtrl::TabsCtrl() {
     kind = kindTabs;
 }
 
+// must be called after LayoutTabs()
+static void TabsCtrlUpdateAfterChangingTabsCount(TabsCtrl* tabs) {
+    HWND hwnd = tabs->hwnd;
+    if (GetCapture() == hwnd) {
+        ReleaseCapture();
+    }
+    tabs->tabBeingClosed = -1;
+    Point mousePos = HwndGetCursorPos(hwnd);
+    auto tabState = tabs->TabStateFromMousePosition(mousePos);
+    bool canClose = tabState.tabInfo && tabState.tabInfo->canClose;
+    bool overClose = tabState.overClose && canClose;
+    int tabUnderMouse = tabState.tabIdx;
+    tabs->tabHighlighted = tabUnderMouse;
+    tabs->tabHighlightedClose = overClose ? tabUnderMouse : -1;
+    if (tabs->draggingTab) {
+        tabs->draggingTab = false;
+        ImageList_EndDrag();
+    }
+}
+
 TabsCtrl::~TabsCtrl() {
 }
 
@@ -3380,7 +3377,7 @@ static void UpdateAfterDrag(TabsCtrl* tabsCtrl, int tab1, int tab2) {
     bool badState = (tab1 == tab2) || (tab1 < 0) || (tab2 < 0) || (tab1 >= nTabs) || (tab2 >= nTabs);
     if (badState) {
         logfa("tab1: %d, tab2: %d, nTabs: %d\n", tab1, tab2, nTabs);
-        ReportIf(true);
+        ReportDebugIf(true);
         return;
     }
 
@@ -3395,6 +3392,7 @@ static void UpdateAfterDrag(TabsCtrl* tabsCtrl, int tab1, int tab2) {
     }
     tabsCtrl->SetSelected(newSelected);
     tabsCtrl->LayoutTabs();
+    TabsCtrlUpdateAfterChangingTabsCount(tabsCtrl);
 }
 
 LRESULT TabsCtrl::OnNotifyReflect(WPARAM wp, LPARAM lp) {
@@ -3409,27 +3407,17 @@ LRESULT TabsCtrl::OnNotifyReflect(WPARAM wp, LPARAM lp) {
 
         case TTN_GETDISPINFOA:
         case TTN_GETDISPINFOW:
-            if (gLogTabs) {
-                logfa("TabsCtrl::OnNotifyReflect: TTN_GETDISPINFO\n");
-            }
             break;
     }
     return 0;
 }
-
-// used to do less logging of WM_MOUSEMOVE
-static int nWmMouseMoveCount = 0;
 
 LRESULT TabsCtrl::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     // TCITEMW* tcs = nullptr;
 
     Point mousePos = {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
     if (WM_MOUSELEAVE == msg) {
-        POINT p;
-        GetCursorPos(&p);
-        ScreenToClient(hwnd, &p);
-        mousePos.x = p.x;
-        mousePos.y = p.y;
+        mousePos = HwndGetCursorPos(hwnd);
     }
 
     TabsCtrl::MouseState tabState;
@@ -3480,27 +3468,15 @@ LRESULT TabsCtrl::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             break;
 
         case WM_MOUSELEAVE:
-            if (gLogTabs) {
-                logfa("TabsCtrl::WndProc: WM_MOUSELEAVE, tabUnderMouse: %d, tabHighlited: %d\n", tabUnderMouse,
-                      tabHighlighted);
-            }
             if (tabHighlighted != tabUnderMouse) {
                 tabHighlighted = tabUnderMouse;
                 HwndScheduleRepaint(hwnd);
             }
-            nWmMouseMoveCount = 0;
             break;
 
         case WM_MOUSEMOVE: {
             TrackMouseLeave(hwnd);
             bool isDragging = (GetCapture() == hwnd);
-            if (nWmMouseMoveCount == 0 || isDragging) {
-                if (gLogTabs) {
-                    logfa("TabsCtrl::WndProc: WM_MOUSEMOVE: tabUnderMouse: %d, tabHighlited: %d, isDragging: %d\n",
-                          tabUnderMouse, tabHighlighted, (int)isDragging);
-                }
-            }
-            nWmMouseMoveCount++;
             int hl = tabHighlighted;
             if (isDragging && tabUnderMouse == -1) {
                 // move the tab out: draw it as a image and drag around the screen
@@ -3517,21 +3493,16 @@ LRESULT TabsCtrl::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 ImageList_DragEnter(NULL, p.x, p.y);
                 return 0;
             }
+
             if (hl != tabUnderMouse) {
                 tabHighlighted = tabUnderMouse;
-                if (isDragging) {
+                // logf("tab: WM_MOUSEMOVE: tabHighlighted = tabUnderMouse: %d\n", tabHighlighted);
+                // note: hl == -1 possible repro: we start drag, a file gets loaded via DDE etc.
+                // which re-layouts tabs and mouse is no longer over a tab
+                if (isDragging && hl != -1) {
                     // send notification if the highlighted tab is dragged over another
                     if (!GetTab(tabUnderMouse)->isPinned) {
-                        if (gLogTabs) {
-                            logfa(
-                                "TabsCtrl::WndProc: WM_MOUSEMOVE: before TriggerTabDragged: hl=%d, tabUnderMouse=%d\n",
-                                hl, tabUnderMouse);
-                        }
                         TriggerTabDragged(this, hl, tabUnderMouse);
-                        if (gLogTabs) {
-                            logfa("TabsCtrl::WndProc: WM_MOUSEMOVE: before UpdateAfterDrag: hl=%d, tabUnderMouse=%d\n",
-                                  hl, tabUnderMouse);
-                        }
                         UpdateAfterDrag(this, hl, tabUnderMouse);
                     }
                 } else {
@@ -3547,14 +3518,13 @@ LRESULT TabsCtrl::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             // logfa("inX=%d, hl=%d, xHl=%d, xHighlighted=%d\n", (int)inX, hl, xHl, tab->xHighlighted);
             if (tabHighlightedClose != xHl) {
                 // logfa("before invalidate, xHl=%d, xHighlited=%d\n", xHl, tab->xHighlighted);
-                HwndScheduleRepaint(hwnd);
                 tabHighlightedClose = xHl;
+                HwndScheduleRepaint(hwnd);
             }
             return 0;
         }
 
         case WM_LBUTTONDOWN: {
-            nWmMouseMoveCount = 0;
             tabHighlighted = tabUnderMouse;
             if (overClose) {
                 HwndScheduleRepaint(hwnd);
@@ -3576,23 +3546,10 @@ LRESULT TabsCtrl::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                     SetCapture(hwnd);
                 }
             }
-            if (gLogTabs || (tabHighlighted == -1)) {
-                logfa(
-                    "TabsCtrl::WndProc: WM_LBUTTONDOWN, tabUnderMouse: %d, tabHighlited: %d, tabBeingClosed: %d, "
-                    "overClose: %d\n",
-                    tabUnderMouse, tabHighlighted, tabBeingClosed, (int)overClose);
-            }
             return 0;
         }
 
         case WM_LBUTTONUP: {
-            nWmMouseMoveCount = 0;
-            if (gLogTabs) {
-                logfa(
-                    "TabsCtrl::WndProc: WM_LBUTTONUP, tabUnderMouse: %d, tabHighlited: %d, tabBeingClosed: %d, "
-                    "overClose: %d\n",
-                    tabUnderMouse, tabHighlighted, tabBeingClosed, (int)overClose);
-            }
             if (tabBeingClosed != -1 && tabUnderMouse == tabBeingClosed && overClose) {
                 // send notification that the tab is closed
                 TriggerTabClosed(this, tabBeingClosed);
@@ -3606,39 +3563,31 @@ LRESULT TabsCtrl::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             // we don't always get WM_MOUSEMOVE before WM_LBUTTONUP so
             // update tabHighlighted
             tabHighlighted = tabUnderMouse;
-            if (draggingTab) {
-                draggingTab = false;
-                ImageList_EndDrag();
-                int selectedTab = GetSelected();
-                if (gLogTabs) {
-                    logfa("TabsCtrl::WndProc: WM_LBUTTONUP, selectedTab: %d tabUnderMouse: %d\n", selectedTab,
-                          tabUnderMouse);
-                }
-                if (tabUnderMouse < 0) {
-                    // migrate to new/different window
-                    POINT p(mousePos.x, mousePos.y);
-                    ClientToScreen(hwnd, &p);
-                    Point scPoint(p.x, p.y);
-                    TriggerTabMigration(this, selectedTab, scPoint);
-                    return 0;
-                }
-                if (tabUnderMouse != selectedTab && !GetTab(tabUnderMouse)->isPinned) {
-                    TriggerTabDragged(this, selectedTab, tabUnderMouse);
-                    UpdateAfterDrag(this, selectedTab, tabUnderMouse);
-                }
+
+            if (!draggingTab) {
+                return 0;
+            }
+            draggingTab = false;
+            ImageList_EndDrag();
+            int selectedTab = GetSelected();
+            if (tabUnderMouse < 0) {
+                // migrate to new/different window
+                POINT p(mousePos.x, mousePos.y);
+                ClientToScreen(hwnd, &p);
+                Point scPoint(p.x, p.y);
+                TriggerTabMigration(this, selectedTab, scPoint);
+                return 0;
+            }
+            if (tabUnderMouse != selectedTab && !GetTab(tabUnderMouse)->isPinned) {
+                TriggerTabDragged(this, selectedTab, tabUnderMouse);
+                UpdateAfterDrag(this, selectedTab, tabUnderMouse);
             }
             return 0;
         }
 
         case WM_MBUTTONDOWN: {
             // middle-clicking unconditionally closes the tab
-            if (gLogTabs) {
-                logfa(
-                    "TabsCtrl::WndProc: WM_MBUTTONDOWN, tabUnderMouse: %d, tabHighlited: %d, tabBeingClosed: %d, "
-                    "overClose: %d\n",
-                    tabUnderMouse, tabHighlighted, tabBeingClosed, (int)overClose);
-            }
-            nWmMouseMoveCount = 0;
+
             tabBeingClosed = tabUnderMouse;
             if (tabBeingClosed < 0 || !canClose) {
                 return 0;
@@ -3742,17 +3691,9 @@ int TabsCtrl::InsertTab(int idx, TabInfo* tab) {
         return res;
     }
     tabs.InsertAt(idx, tab);
-
-    if (idx == 0) {
-        SetSelected(0);
-    } else {
-        int selectedTab = GetSelected();
-        if (idx <= selectedTab) {
-            SetSelected(selectedTab + 1);
-        }
-    }
-    tabBeingClosed = -1;
+    SetSelected(idx);
     LayoutTabs();
+    TabsCtrlUpdateAfterChangingTabsCount(this);
     return idx;
 }
 
@@ -3773,7 +3714,6 @@ UINT_PTR TabsCtrl::RemoveTab(int idx) {
     UINT_PTR userData = tab->userData;
     tabs.RemoveAt(idx);
     delete tab;
-    tabBeingClosed = -1;
     int selectedTab = GetSelected();
     if (idx < selectedTab) {
         SetSelected(selectedTab - 1);
@@ -3781,18 +3721,24 @@ UINT_PTR TabsCtrl::RemoveTab(int idx) {
         SetSelected(0);
     }
     LayoutTabs();
+    TabsCtrlUpdateAfterChangingTabsCount(this);
     return userData;
+}
+
+void TabsCtrl::SwapTabs(int idx1, int idx2) {
+    TabInfo* tmp = tabs[idx1];
+    tabs[idx1] = tabs[idx2];
+    tabs[idx2] = tmp;
+    LayoutTabs();
 }
 
 // Note: the caller should take care of deleting userData
 void TabsCtrl::RemoveAllTabs() {
     TabCtrl_DeleteAllItems(hwnd);
-    tabHighlighted = -1;
-    tabBeingClosed = -1;
-    tabHighlightedClose = -1;
     DeleteVecMembers(tabs);
     tabs.Reset();
     LayoutTabs();
+    TabsCtrlUpdateAfterChangingTabsCount(this);
 }
 
 TabInfo* TabsCtrl::GetTab(int idx) {
@@ -3812,6 +3758,11 @@ int TabsCtrl::SetSelected(int idx) {
     ReportIf(idx < 0 || idx >= nTabs);
     int prevSelectedIdx = TabCtrl_SetCurSel(hwnd, idx);
     return prevSelectedIdx;
+}
+
+void TabsCtrl::SetHighlighted(int idx) {
+    tabForceShowSelected = idx;
+    HwndRepaintNow(hwnd);
 }
 
 HWND TabsCtrl::GetToolTipsHwnd() {
@@ -3940,31 +3891,6 @@ static LRESULT CALLBACK wndProcCustom(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 }
 #endif
-
-void DeleteWnd(Static** wnd) {
-    delete *wnd;
-    *wnd = nullptr;
-}
-
-void DeleteWnd(Button** wnd) {
-    delete *wnd;
-    *wnd = nullptr;
-}
-
-void DeleteWnd(Edit** wnd) {
-    delete *wnd;
-    *wnd = nullptr;
-}
-
-void DeleteWnd(Checkbox** wnd) {
-    delete *wnd;
-    *wnd = nullptr;
-}
-
-void DeleteWnd(Progress** wnd) {
-    delete *wnd;
-    *wnd = nullptr;
-}
 
 void DrawCloseButton(const DrawCloseButtonArgs& args) {
     bool isHover = args.isHover;

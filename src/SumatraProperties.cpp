@@ -419,7 +419,7 @@ static bool CreatePropertiesWindow(HWND hParent, PropertiesLayout* layoutData, b
 
     layoutData->hwnd = hwnd;
     layoutData->hwndParent = hParent;
-    bool isRtl = IsUIRightToLeft();
+    bool isRtl = IsUIRtl();
     HwndSetRtl(hwnd, isRtl);
     {
         Button::CreateArgs args;
@@ -431,7 +431,7 @@ static bool CreatePropertiesWindow(HWND hParent, PropertiesLayout* layoutData, b
 
         layoutData->btnCopyToClipboard = b;
         HwndSetRtl(b->hwnd, isRtl);
-        b->onClicked = MkFunc0(CopyPropertiesToClipboard, layoutData);
+        b->onClick = MkFunc0(CopyPropertiesToClipboard, layoutData);
     }
 
     if (!extended) {
@@ -444,7 +444,7 @@ static bool CreatePropertiesWindow(HWND hParent, PropertiesLayout* layoutData, b
 
         HwndSetRtl(b->hwnd, isRtl);
         layoutData->btnGetFonts = b;
-        b->onClicked = MkFunc0(ShowExtendedProperties, layoutData);
+        b->onClick = MkFunc0(ShowExtendedProperties, layoutData);
     }
 
     // get the dimensions required for the about box's content
@@ -529,6 +529,11 @@ static void AddPdfFileStructure(DocController* ctrl, PropertiesLayout* layoutDat
     layoutData->AddProperty(_TRA("PDF Optimizations:"), val);
 }
 
+// https://www.compart.com/en/unicode/U+202A
+constexpr const char* leftToRightEmbeding = "\xe2\x80\xaa";
+// https://www.compart.com/en/unicode/U+202c
+constexpr const char* popDirectionalFormatting = "\xe2\x80\xac";
+
 static void GetProps(DocController* ctrl, PropertiesLayout* layoutData, bool extended) {
     ReportIf(!ctrl);
 
@@ -547,7 +552,7 @@ static void GetProps(DocController* ctrl, PropertiesLayout* layoutData, bool ext
     }
     TempStr strTemp;
     if (-1 != fileSize) {
-        strTemp = FormatFileSizeTemp(fileSize);
+        strTemp = FormatFileSizeTransTemp(fileSize);
         layoutData->AddProperty(_TRA("File Size:"), strTemp);
     }
 
@@ -583,13 +588,10 @@ static void GetProps(DocController* ctrl, PropertiesLayout* layoutData, bool ext
 
     if (dm) {
         strTemp = FormatPageSizeTemp(dm->GetEngine(), ctrl->CurrentPageNo(), dm->GetRotation());
-        if (IsUIRightToLeft() && IsWindowsVistaOrGreater()) {
+        if (IsUIRtl() && IsWindowsVistaOrGreater()) {
             // ensure that the size remains ungarbled left-to-right
             // (note: XP doesn't know about \u202A...\u202C)
-            TempWStr ws = ToWStrTemp(strTemp);
-            ws = str::Format(L"\u202A%s\u202C", ws);
-            strTemp = ToUtf8Temp(ws);
-            str::Free(ws);
+            strTemp = str::JoinTemp(leftToRightEmbeding, strTemp, popDirectionalFormatting);
         }
         layoutData->AddProperty(_TRA("Page Size:"), strTemp);
     }

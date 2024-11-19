@@ -57,7 +57,7 @@ struct TouchState {
 struct StaticLinkInfo {
     Rect rect;
     char* target = nullptr;
-    char* infotip = nullptr;
+    char* tooltip = nullptr;
 
     explicit StaticLinkInfo(Rect rect, const char* target, const char* infotip = nullptr);
     StaticLinkInfo() = default;
@@ -96,6 +96,7 @@ struct MainWindow {
 
     HWND hwndFrame = nullptr;
     HWND hwndCanvas = nullptr;
+
     HWND hwndReBar = nullptr;
     HWND hwndToolbar = nullptr;
     HWND hwndFindLabel = nullptr;
@@ -262,5 +263,5 @@ MainWindow* FindMainWindowByTab(WindowTab*);
 MainWindow* FindMainWindowByHwnd(HWND);
 bool IsMainWindowValid(MainWindow*);
 MainWindow* FindMainWindowByController(DocController*);
-
 extern Vec<MainWindow*> gWindows;
+void HighlightTab(MainWindow*, WindowTab*);

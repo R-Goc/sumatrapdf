@@ -5,7 +5,6 @@ struct fz_outline;
 struct fz_link;
 
 extern Kind kindEngineMupdf;
-extern Kind kindEngineMulti;
 extern Kind kindEngineDjVu;
 extern Kind kindEngineImage;
 extern Kind kindEngineImageDir;
@@ -321,14 +320,6 @@ struct TocItem {
     TocItem* currChild = nullptr;
     int currChildNo = 0;
 
-    // -- only for .EngineMulti
-    // marks a node that represents a file
-    char* engineFilePath = nullptr;
-    int nPages = 0;
-    // auto-calculated page number that tells us a span from
-    // pageNo => endPageNo
-    int endPageNo = 0;
-
     TocItem() = default;
 
     explicit TocItem(TocItem* parent, const char* title, int pageNo);
@@ -550,3 +541,12 @@ struct PasswordUI {
     virtual char* GetPassword(const char* fileName, u8* fileDigest, u8 decryptionKeyOut[32], bool* saveKey) = 0;
     virtual ~PasswordUI() = default;
 };
+
+template <typename T>
+void SafeEngineRelease(T** enginePtr) {
+    T* engine = *enginePtr;
+    if (engine) {
+        engine->Release();
+        *enginePtr = nullptr;
+    }
+}

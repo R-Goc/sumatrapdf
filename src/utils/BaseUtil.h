@@ -134,9 +134,6 @@
 #include <string>
 #include <array>
 #include <limits>
-// #include <span>
-// #include <iostream>
-// #include <locale>
 
 using i8 = int8_t;
 using u8 = uint8_t;
@@ -258,6 +255,11 @@ void BreakIfUnderDebugger();
 
 #define ReportIf(cond) ReportIfCond(cond, #cond, false, true)
 #define ReportIfQuick(cond) ReportIfCond(cond, #cond, false, false)
+#if defined(DEBUG)
+#define ReportDebugIf(cond) ReportIfCond(cond, #cond, false, true)
+#else
+#define ReportDebugIf(cond)
+#endif
 
 void* AllocZero(size_t count, size_t size);
 
@@ -307,9 +309,53 @@ int RoundUp(int n, int rounding);
 char* RoundUp(char*, int rounding);
 
 template <typename T>
-void ListInsert(T** root, T* el) {
+void ListDelete(T* root) {
+    T* next;
+    T* curr = root;
+    while (curr) {
+        next = curr->next;
+        delete curr;
+        curr = next;
+    }
+}
+
+template <typename T>
+void ListInsertFront(T** root, T* el) {
     el->next = *root;
     *root = el;
+}
+
+template <typename T>
+void ListInsertEnd(T** root, T* el) {
+    el->next = nullptr;
+    if (!*root) {
+        *root = el;
+        return;
+    }
+    T** prevPtr = root;
+    T** currPtr = root;
+    T* curr;
+    while (*currPtr) {
+        prevPtr = currPtr;
+        curr = *currPtr;
+        currPtr = &(curr->next);
+    }
+    T* prev = *prevPtr;
+    prev->next = el;
+}
+
+template <typename T>
+void ListReverse(T** root) {
+    T* newRoot = nullptr;
+    T* next;
+    T* el = *root;
+    while (el) {
+        next = el->next;
+        el->next = newRoot;
+        newRoot = el;
+        el = next;
+    }
+    *root = newRoot;
 }
 
 template <typename T>
@@ -597,7 +643,7 @@ struct AtomicInt {
 using func0Ptr = void (*)(void*);
 using funcVoidPtr = void (*)();
 
-#define kVoidFuncNoArg (void*)-1
+#define kFuncNoArg (void*)-1
 
 // the simplest possible function that ties a function and a single argument to it
 // we get type safety and convenience with mkFunc()
@@ -631,7 +677,7 @@ struct Func0 {
         if (!fn) {
             return;
         }
-        if (userData == kVoidFuncNoArg) {
+        if (userData == kFuncNoArg) {
             auto func = (funcVoidPtr)fn;
             func();
             return;
@@ -640,7 +686,7 @@ struct Func0 {
         func(userData);
     }
 };
-Func0 MkFuncVoid(funcVoidPtr fn);
+Func0 MkFunc0Void(funcVoidPtr fn);
 
 template <typename T>
 Func0 MkFunc0(void (*fn)(T*), T* d) {
@@ -681,7 +727,7 @@ struct Func1 {
         if (!fn) {
             return;
         }
-        if (userData == kVoidFuncNoArg) {
+        if (userData == kFuncNoArg) {
             using fptr = void (*)(T);
             auto func = (fptr)fn;
             func(arg);
@@ -705,7 +751,7 @@ Func1<T2> MkFunc1Void(void (*fn)(T2)) {
     auto res = Func1<T2>{};
     using fptr = void (*)(void*, T2);
     res.fn = (fptr)fn;
-    res.userData = kVoidFuncNoArg;
+    res.userData = kFuncNoArg;
     return res;
 }
 
@@ -735,7 +781,7 @@ struct AtomicRefCount {
     int Add();
     // returns true if counter reaches 0, meaning it has been released
     // by all who held a reference to it
-    bool Dec();
+    int Dec();
 
   private:
     // starts life as acquired

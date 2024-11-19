@@ -112,8 +112,8 @@ void TextSearch::SetSensitive(bool sensitive) {
     markAllPagesNonSkip(pagesToSkip);
 }
 
-void TextSearch::SetDirection(TextSearchDirection direction) {
-    bool fwd = TextSearchDirection::Forward == direction;
+void TextSearch::SetDirection(TextSearch::Direction direction) {
+    bool fwd = TextSearch::Direction::Forward == direction;
     if (fwd == forward) {
         return;
     }
@@ -304,16 +304,14 @@ bool TextSearch::FindTextInPage(int pageNo, TextSearch::PageAndOffset* finalGlyp
     return true;
 }
 
-bool TextSearch::FindStartingAtPage(int pageNo, ProgressUpdateUI* tracker) {
+bool TextSearch::FindStartingAtPage(int pageNo) {
     if (str::IsEmpty(findText)) {
         return false;
     }
 
     int next = forward ? 1 : -1;
-    while (1 <= pageNo && pageNo <= nPages && (!tracker || !tracker->WasCanceled())) {
-        if (tracker) {
-            tracker->UpdateProgress(pageNo, nPages);
-        }
+    while ((1 <= pageNo) && (pageNo <= nPages) && !WasCanceled(progressCb)) {
+        UpdateProgress(progressCb, pageNo, nPages);
 
         if (pagesToSkip[pageNo - 1]) {
             pageNo += next;
@@ -350,27 +348,25 @@ bool TextSearch::FindStartingAtPage(int pageNo, ProgressUpdateUI* tracker) {
     return false;
 }
 
-TextSel* TextSearch::FindFirst(int page, const WCHAR* text, ProgressUpdateUI* tracker) {
+TextSel* TextSearch::FindFirst(int page, const WCHAR* text) {
     SetText(text);
 
-    if (FindStartingAtPage(page, tracker)) {
+    if (FindStartingAtPage(page)) {
         return &result;
     }
     return nullptr;
 }
 
-TextSel* TextSearch::FindNext(ProgressUpdateUI* tracker) {
+TextSel* TextSearch::FindNext() {
     ReportIf(!findText);
     if (!findText) {
         return nullptr;
     }
 
-    if (tracker) {
-        if (tracker->WasCanceled()) {
-            return nullptr;
-        }
-        tracker->UpdateProgress(findPage, nPages);
+    if (WasCanceled(progressCb)) {
+        return nullptr;
     }
+    UpdateProgress(progressCb, findPage, nPages);
 
     PageAndOffset finalGlyph;
     if (FindTextInPage(findPage, &finalGlyph)) {
@@ -383,7 +379,7 @@ TextSel* TextSearch::FindNext(ProgressUpdateUI* tracker) {
     }
 
     auto next = forward ? 1 : -1;
-    if (FindStartingAtPage(findPage + next, tracker)) {
+    if (FindStartingAtPage(findPage + next)) {
         return &result;
     }
     return nullptr;

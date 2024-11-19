@@ -620,6 +620,7 @@ workspace "SumatraPDF"
       "mupdf/resources/fonts/sil/CharisSIL-Bold.cff",
       "mupdf/resources/fonts/sil/CharisSIL-Italic.cff",
       "mupdf/resources/fonts/sil/CharisSIL-BoldItalic.cff",
+
       "mupdf/resources/fonts/noto/NotoSans-Regular.otf",
       "mupdf/resources/fonts/noto/NotoSansMath-Regular.otf",
       "mupdf/resources/fonts/noto/NotoSansSymbols-Regular.otf",
@@ -627,9 +628,6 @@ workspace "SumatraPDF"
       "mupdf/resources/fonts/noto/NotoEmoji-Regular.ttf",
       "mupdf/resources/fonts/noto/NotoMusic-Regular.otf",
       "mupdf/resources/fonts/noto/NotoSerif-Regular.otf",
-      "mupdf/resources/fonts/noto/NotoSerifDevanagari-Regular.otf",
-      "mupdf/resources/fonts/noto/NotoSerifGeorgian-Regular.otf",
-      "mupdf/resources/fonts/noto/NotoSerifTelugu-Regular.otf",
     }
 
     filter {'files:**.cff'}
@@ -714,6 +712,11 @@ workspace "SumatraPDF"
     links { "mupdf-libs" }
     -- links { "mupdf-libs", "zlib", "freetype", "openjpeg", "libjpeg-turbo", "jbig2dec", "lcms2", "harfbuzz", "mujs", "gumbo" }
 
+    -- mupdf
+    -- this fixes "NAN" is not a constant in some version of msvc
+    -- without this it's #define _UCRT_NAN (__ucrt_int_to_float(0x7FC00000))
+    defines { "_UCRT_NOISY_NAN" }
+
   project "libmupdf"
     kind "SharedLib"
     language "C"
@@ -782,7 +785,7 @@ workspace "SumatraPDF"
     includedirs { "src", "mupdf/include"}
     files { "src/tools/signfile.cpp", "src/CrashHandlerNoOp.cpp" }
     links { "utils", "mupdf" }
-    links { "crypt32", "shlwapi", "version", "Comctl32", "wininet" }
+    links { "crypt32", "shlwapi", "version", "Comctl32", "wininet", "wintrust" }
 
 
   project "plugin-test"
@@ -794,7 +797,7 @@ workspace "SumatraPDF"
     includedirs { "src" }
     plugin_test_files()
     links { "utils", "mupdf" }
-    links { "shlwapi", "version", "comctl32", "wininet" }
+    links { "shlwapi", "version", "comctl32", "wininet", "wintrust" }
 
   project "test_util"
     kind "ConsoleApp"
@@ -814,7 +817,7 @@ workspace "SumatraPDF"
     filter {}
     includedirs { "src" }
     test_util_files()
-    links { "gdiplus", "comctl32", "shlwapi", "Version", "wininet" }
+    links { "gdiplus", "comctl32", "shlwapi", "Version", "wininet", "shcore", "wintrust", "crypt32" }
 
   project "sizer"
     kind "ConsoleApp"
@@ -859,7 +862,7 @@ workspace "SumatraPDF"
     includedirs { "src", "src/wingui", "mupdf/include" }
     search_filter_files()
     links { "utils", "unrar", "libmupdf" }
-    links { "comctl32", "gdiplus", "shlwapi", "version", "wininet" }
+    links { "comctl32", "gdiplus", "shlwapi", "version", "wininet", "wintrust" }
 
   project "PdfPreview"
     kind "SharedLib"
@@ -883,7 +886,7 @@ workspace "SumatraPDF"
     -- TODO: "chm" should only be for Debug config but doing links { "chm" }
     -- in the filter breaks linking by setting LinkLibraryDependencies to false
     links { "utils", "unrar", "libmupdf", "chm" }
-    links { "comctl32", "gdiplus", "msimg32", "shlwapi", "version", "wininet" }
+    links { "comctl32", "gdiplus", "msimg32", "shlwapi", "version", "wininet", "wintrust" }
 
     project "PdfPreviewTest"
       kind "ConsoleApp"
@@ -893,7 +896,7 @@ workspace "SumatraPDF"
       disablewarnings { "4838" }
       includedirs { "src" }
       preview_test_files()
-      links { "gdiplus", "comctl32", "shlwapi", "Version" }
+      links { "gdiplus", "comctl32", "shlwapi", "Version", "Ole32" }
       dependson { "PdfPreview" }
 
   -- a single static executable
@@ -941,7 +944,7 @@ workspace "SumatraPDF"
     }
     links {
       "comctl32", "delayimp", "gdiplus", "msimg32", "shlwapi", "urlmon",
-      "version", "windowscodecs", "wininet", "uiautomationcore.lib"
+      "version", "windowscodecs", "wininet", "uiautomationcore.lib", "uxtheme", "wintrust"
     }
     -- this is to prevent dll hijacking
     linkoptions { "/DELAYLOAD:gdiplus.dll /DELAYLOAD:msimg32.dll /DELAYLOAD:shlwapi.dll" }
@@ -1002,7 +1005,7 @@ workspace "SumatraPDF"
     }
     links {
       "comctl32", "delayimp", "gdiplus", "msimg32", "shlwapi", "urlmon",
-      "version", "wininet", "d2d1.lib", "uiautomationcore.lib"
+      "version", "wininet", "d2d1.lib", "uiautomationcore.lib", "uxtheme", "wintrust", "crypt32"
     }
     -- this is to prevent dll hijacking
     linkoptions { "/DELAYLOAD:libmupdf.dll" }

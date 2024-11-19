@@ -185,6 +185,7 @@ const char* FindCharLast(const char* str, char c);
 char* FindCharLast(char* str, char c);
 const char* Find(const char* str, const char* find);
 const char* FindI(const char* str, const char* find);
+int BufFind(const char* buf, int bufSize, const char* toFind);
 
 bool Contains(const char* s, const char* txt);
 bool ContainsI(const char* s, const char* txt);
@@ -218,6 +219,8 @@ int CmpNatural(const char*, const char*);
 
 TempStr FormatFloatWithThousandSepTemp(double number, LCID locale = LOCALE_USER_DEFAULT);
 TempStr FormatNumWithThousandSepTemp(i64 num, LCID locale = LOCALE_USER_DEFAULT);
+TempStr FormatSizeShortTemp(i64 size, const char* sizeUnits[3]);
+TempStr FormatFileSizeTemp(i64);
 TempStr FormatRomanNumeralTemp(int number);
 
 bool IsEmptyOrWhiteSpace(const char*);
@@ -238,7 +241,6 @@ bool EndsWith(const WCHAR* txt, const WCHAR* end);
 bool EndsWithI(const WCHAR* txt, const WCHAR* end);
 WCHAR* ToLower(const WCHAR*);
 WCHAR* ToLowerInPlace(WCHAR*);
-int CmpNatural(const WCHAR*, const WCHAR*);
 const WCHAR* Parse(const WCHAR* str, const WCHAR* format, ...);
 int BufSet(WCHAR* dst, int dstCchSize, const WCHAR* src);
 int BufSet(WCHAR* dst, int dstCchSize, const char* src);
@@ -247,14 +249,13 @@ size_t RemoveCharsInPlace(WCHAR* str, const WCHAR* toRemove);
 const WCHAR* FindChar(const WCHAR* str, WCHAR c);
 WCHAR* FindChar(WCHAR* str, WCHAR c);
 const WCHAR* Find(const WCHAR* str, const WCHAR* find);
-WCHAR* FmtV(const WCHAR* fmt, va_list args);
-WCHAR* Format(const WCHAR* fmt, ...);
 bool IsWs(WCHAR c);
 bool IsDigit(WCHAR c);
 bool IsNonCharacter(WCHAR c);
 size_t TransCharsInPlace(WCHAR* str, const WCHAR* oldChars, const WCHAR* newChars);
 WCHAR* Replace(const WCHAR* s, const WCHAR* toReplace, const WCHAR* replaceWith);
 
+WCHAR* ToWCHAR(const char* s);
 } // namespace str
 
 namespace url {
@@ -390,7 +391,6 @@ struct WStr {
     bool Contains(const WCHAR& el) const;
     int Remove(const WCHAR& el);
     bool IsEmpty() const;
-    void AppendFmt(const WCHAR* fmt, ...);
     void Set(const WCHAR*);
     WCHAR* Get() const;
     WCHAR LastChar() const;
@@ -412,3 +412,5 @@ bool Replace(WStr& s, const WCHAR* toReplace, const WCHAR* replaceWith);
 } // namespace str
 
 int ParseInt(const char* bytes);
+bool IsValidProgramVersion(const char* ver);
+int CompareProgramVersion(const char* ver1, const char* ver2);

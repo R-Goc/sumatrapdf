@@ -1,4 +1,4 @@
-[SumatraPDF](https://www.sumatrapdfreader.org/) is a free [PDF, EPUB, MOBI, CHM, XPS, DjVu, CBZ and CBR](Supported-document-formats.md) reader for Windows. It's small and starts up fast. Simplicity of user interface is important to us.
+[SumatraPDF](https://www.sumatrapdfreader.org/) is a free [PDF, EPUB, MOBI, CHM, XPS, DjVu, CBZ and CBR](Supported-document-formats.md) reader for Windows. It's small, fast, customizable and full of features.
 
 :columns
 ## Documentation for users
@@ -7,15 +7,19 @@
 
 [Keyboard shortcuts](Keyboard-shortcuts.md)
 
-[Scrolling, zooming, navigating](Scrolling-and-zooming.md)
-
 [Customizing keyboard shortcuts](Customizing-keyboard-shortcuts.md)
+
+[Scrolling, zooming, navigating](Scrolling-and-zooming.md)
 
 [Commands](Commands.md)
 
 [Command-line arguments](Command-line-arguments.md)
 
 [Advanced options / settings](Advanced-options-settings.md)
+
+[Customizing toolbar](Customize-toolbar.md)
+
+[Customizing UI colors / theme](Customize-theme-colors.md)
 
 [Customize external viewers](Customize-external-viewers.md)
 

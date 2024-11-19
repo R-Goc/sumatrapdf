@@ -56,12 +56,9 @@ int AtomicRefCount::Add() {
     return (int)InterlockedIncrement(&val);
 }
 
-// returns true if counter reaches 0, meaning it has been released
-// by all who held a reference to it
-bool AtomicRefCount::Dec() {
+int AtomicRefCount::Dec() {
     auto res = InterlockedDecrement(&val);
-    ReportIf(res < 0);
-    return res == 0;
+    return res;
 }
 
 void BreakIfUnderDebugger() {
@@ -519,9 +516,19 @@ float limitValue(float val, float min, float max) {
     return val;
 }
 
-Func0 MkFuncVoid(funcVoidPtr fn) {
+Func0 MkFunc0Void(funcVoidPtr fn) {
     auto res = Func0{};
     res.fn = (void*)fn;
-    res.userData = kVoidFuncNoArg;
+    res.userData = kFuncNoArg;
     return res;
 }
+
+#if 0
+template <typename T>
+Func0 MkMethod0Void(funcVoidPtr fn, T* self) {
+    UINT_PTR fnTagged = (UINT_PTR)fn;
+    res.fn = (void*)fn;
+    res.userData = kFuncNoArg;
+    res.self = self;
+}
+#endif

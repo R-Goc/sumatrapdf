@@ -19,11 +19,12 @@ Changes in [pre-release builds](https://www.sumatrapdfreader.org/prerelease):
   - `CmdToggleFrequentlyRead` : "Toggle Frequently Read"
   - `CmdToggleLinks` : "Toggle Show Links"
   - `CmdInvokeInverseSearch`
+  - `CmdMoveTabRight` (`Ctrl + Shift + PageUp`), `CmdMoveTabLeft` (`Ctrl + Shift + PageDown`) to move tabs left / right, like in Chrome
 - add ability to provide arguments to some commands when creating bindings in `Shortcuts`:
   - CmdCreateAnnot\* commands take a color argument, `openedit` to automatically open edit annotations window when creating an annotation, `copytoclipboard` to copy selection to clipboard and `setcontent` to set contents of annotation to selection
   - `CmdScrollDown`, `CmdScrollUp` : integer argument, how many lines to scroll
   - `CmdGoToNextPage`, `CmdGoToPrevPage` : integer argument, how many pages to advance
-  - `CmdSmartTabSwitch` (`Smart Tab Switch`), shortcut: `Ctrl + Tab`
+  - `CmdNextTabSmart`, `CmdPrevTabSmart` (`Smart Tab Switch`), shortcut: `Ctrl + Tab`, `Ctrl + Shift + Tab``
 - added `UIFontSize` advanced setting
 - removed `TreeFontWeightOffset` advanced setting
 - increase number of thumbnails on home page from 10 => 30
@@ -40,7 +41,7 @@ Changes in [pre-release builds](https://www.sumatrapdfreader.org/prerelease):
 - bug fix: Del should not delete an annotation if editing content
 - bug fix: re-enable tree view full row select
 - change: `CmdCreateAnnotHighlight` etc. no longer copies selection to clipboard by default. To get that behavior back, you can use `copytoclipboard` argument [instead](Commands.md#cmdcreateannothighlight-and-other-cmdcreateannot).
-- change: `Ctrl + Tab` is now `CmdSmartTabSwitch`, was `CmdNextTab`. You can [re-bind it](Customizing-keyboard-shortcuts.md) if you prefer old behavior
+- change: `Ctrl + Tab` is now `CmdNextTabSmart`, was `CmdNextTab`. `Ctrl + Shift + Tab` is now `CmdPrevTabSmart`, was `CmdPrevTab`. You can [re-bind it](Customizing-keyboard-shortcuts.md) if you prefer old behavior
 - `CmdCommandPalette` takes optional `mode` argument: `@` for tab selection, `#` for selecting from file history and `>` for commands.
 - command palette no longer shows combined tabs/file history/commands. `CmdCommandPalette` only shows commands. Because of that removed `CmdCommandPaletteNoFiles` because now ``CmdCommandPalette` behaves like it
 - removed `CmdCommandPaletteOnlyTabs`, replaced by`CmdCommandPaletteNoFiles @`
@@ -48,6 +49,8 @@ Changes in [pre-release builds](https://www.sumatrapdfreader.org/prerelease):
 - add `Name` field for shortcuts. If given, the command will show up in Command Palette (`Ctrl + K`)
 - closing a current tab now behaves like in Chrome: selects next tab (to the right). We used to select previously active tab, but that's unpredicable and we prefer to align SumatraPDF behavior with other popular apps.
 - swapped key bindings: 'i' is now CmdTogglePageInfo, 'I' is CmdInvertColors. Several people were confused by accidentally typing 'i' to invert colors, is less likely to type it accidentally
+- allow creating custom themes in advanced settings in `Themes` section. [See docs](https://www.sumatrapdfreader.org/docs/Customize-theme-colors).
+- improve scrolling with middle click drag [#4529](https://github.com/sumatrapdfreader/sumatrapdf/issues/4529)
 
 ### 3.5.2 (2023-10-25)
 

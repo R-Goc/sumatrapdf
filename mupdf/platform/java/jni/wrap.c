@@ -1,4 +1,4 @@
-// Copyright (C) 2004-2023 Artifex Software, Inc.
+// Copyright (C) 2004-2024 Artifex Software, Inc.
 //
 // This file is part of MuPDF.
 //
@@ -506,66 +506,6 @@ static inline jobject to_String_safe(fz_context *ctx, JNIEnv *env, const char *v
 	return jval;
 }
 
-
-static int count_next_hits(const int *marks, int a, int end)
-{
-	int b = a + 1;
-	while (b < end && !marks[b])
-		++b;
-	return b - a;
-}
-
-/* Array of Array of Quad */
-static inline jobjectArray to_SearchHits_safe(fz_context *ctx, JNIEnv *env, const int *marks, const fz_quad *quads, jint n)
-{
-	jobjectArray toparr, arr;
-	int i, k, a, m;
-
-	if (!ctx || !marks || !quads)
-		return NULL;
-
-	/* Count total number of search hits */
-	i = a = 0;
-	while (a < n)
-	{
-		a += count_next_hits(marks, a, n);
-		++i;
-	}
-
-	toparr = (*env)->NewObjectArray(env, i, cls_ArrayOfQuad, NULL);
-	if (!toparr || (*env)->ExceptionCheck(env))
-		return NULL;
-
-	i = a = 0;
-	while (a < n)
-	{
-		m = count_next_hits(marks, a, n);
-
-		arr = (*env)->NewObjectArray(env, m, cls_Quad, NULL);
-		if (!arr || (*env)->ExceptionCheck(env))
-			return NULL;
-		(*env)->SetObjectArrayElement(env, toparr, i++, arr);
-		if ((*env)->ExceptionCheck(env))
-			return NULL;
-
-		for (k = 0; k < m; ++k) {
-			jobject jquad = to_Quad_safe(ctx, env, quads[a+k]);
-			if (!jquad || (*env)->ExceptionCheck(env))
-				return NULL;
-			(*env)->SetObjectArrayElement(env, arr, k, jquad);
-			if ((*env)->ExceptionCheck(env))
-				return NULL;
-			(*env)->DeleteLocalRef(env, jquad);
-		}
-
-		(*env)->DeleteLocalRef(env, arr);
-
-		a += m;
-	}
-
-	return toparr;
-}
-
 static inline jobject to_Rect_safe(fz_context *ctx, JNIEnv *env, fz_rect rect)
 {
 	if (!ctx) return NULL;
@@ -691,6 +631,7 @@ static inline jobject to_Document_safe_own(fz_context *ctx, JNIEnv *env, fz_docu
 
 	pdf = pdf_document_from_fz_document(ctx, doc);
 	if (pdf)
+		/* This relies on the fact that pdf == doc! */
 		obj = (*env)->NewObject(env, cls_PDFDocument, mid_PDFDocument_init, jlong_cast(pdf));
 	else
 		obj = (*env)->NewObject(env, cls_Document, mid_Document_init, jlong_cast(doc));
@@ -742,6 +683,19 @@ static inline jobject to_Page_safe_own(fz_context *ctx, JNIEnv *env, fz_page *pa
 		fz_drop_page(ctx, page);
 
 	return jobj;
+}
+
+static inline jobject to_PDFDocument_safe_own(fz_context *ctx, JNIEnv *env, pdf_document *pdf)
+{
+	jobject obj;
+
+	if (!ctx || !pdf) return NULL;
+
+	obj = (*env)->NewObject(env, cls_PDFDocument, mid_PDFDocument_init, jlong_cast(pdf));
+	if (!obj)
+		fz_drop_document(ctx, &pdf->super);
+
+	return obj;
 }
 
 static inline jobject to_Link_safe_own(fz_context *ctx, JNIEnv *env, fz_link *link)

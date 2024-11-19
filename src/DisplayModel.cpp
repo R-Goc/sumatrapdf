@@ -66,7 +66,7 @@
 #include "utils/Log.h"
 
 // if true, we pre-render the pages right before and after the visible pages
-static bool gPredictiveRender = true;
+bool gPredictiveRender = true;
 
 static int ColumnsFromDisplayMode(DisplayMode displayMode) {
     if (!IsSingle(displayMode)) {
@@ -319,7 +319,7 @@ DisplayModel::~DisplayModel() {
     delete textSearch;
     delete textSelection;
     delete textCache;
-    engine->Release();
+    SafeEngineRelease(&engine);
     free(pagesInfo);
 }
 
@@ -600,7 +600,7 @@ void DisplayModel::CalcZoomReal(float newZoomVirtual) {
             if (PageShown(pageNo)) {
                 float zoom = ZoomRealFromVirtualForPage(newZoomVirtual, pageNo);
                 PageInfo* pageInfo = GetPageInfo(pageNo);
-                ReportIf(zoom < 0.01f);
+                ReportDebugIf(zoom < 0.01f);
                 pageInfo->zoomReal = zoom;
                 if (minZoom > zoom) {
                     minZoom = zoom;
@@ -972,7 +972,7 @@ static float getZoomSafe(DisplayModel* dm, int pageNo, const PageInfo* pageInfo)
         "getZoomSafe: invalid zoom in doc: %s\npageNo: %d\npageInfo->zoomReal\n%.2f\ndm->zoomReal: %.2f\n"
         "dm->zoomVirtual: %.2f\n",
         name, pageNo, zoom, pageInfo->zoomReal, dm->zoomReal, dm->zoomVirtual);
-    ReportIf(true);
+    ReportDebugIf(true);
 
     if (dm->zoomReal > 0) {
         return dm->zoomReal;
@@ -1140,11 +1140,14 @@ void DisplayModel::RenderVisibleParts() {
         }
     }
 
+    // TODO: why the hell this is requesting pages again?
+#if 0
     // request the visible pages last so that the above requested
     // invisible pages are not rendered if the queue fills up
     for (int pageNo = lastVisiblePage; pageNo >= firstVisiblePage; pageNo--) {
         cb->RequestRendering(pageNo);
     }
+#endif
 }
 
 void DisplayModel::SetViewPortSize(Size newViewPortSize) {
@@ -1592,38 +1595,63 @@ float DisplayModel::GetZoomVirtual(bool absolute) const {
     return zoomVirtual;
 }
 
-float DisplayModel::GetNextZoomStep(float towardsLevel) const {
-    if (gGlobalPrefs->zoomIncrement > 0) {
-        float zoom = GetZoomVirtual(true);
-        float factor = (gGlobalPrefs->zoomIncrement / 100 + 1);
-        if (zoom < towardsLevel) {
-            return std::min(zoom * factor, towardsLevel);
-        }
-        if (zoom > towardsLevel) {
-            return std::max(zoom / factor, towardsLevel);
-        }
-        return zoom;
+bool MaybeGetNextZoomByIncrement(float* currZoomInOut, float towardsLevel) {
+    auto zoomIncrPerc = gGlobalPrefs->zoomIncrement;
+    if (zoomIncrPerc <= 1) {
+        return false;
     }
+    float factor = (zoomIncrPerc / 100) + 1;
+    float currZoom = *currZoomInOut;
+    float newZoom = currZoom;
+    if (currZoom < towardsLevel) {
+        newZoom = std::min(currZoom * factor, towardsLevel);
+    } else if (currZoom > towardsLevel) {
+        newZoom = std::max(currZoom / factor, towardsLevel);
+    }
+    *currZoomInOut = newZoom;
+    return true;
+}
 
-#if 0
-    // differences to Adobe Reader: starts at 8.33 (instead of 1 and 6.25)
-    // and has four additional intermediary zoom levels ("added")
-    static float zoomLevels[] = {
-        8.33f, 12.5f, 18 /* added */, 25, 33.33f, 50, 66.67f, 75,
-        100, 125, 150, 200, 300, 400, 600, 800, 1000 /* added */,
-        1200, 1600, 2000 /* added */, 2400, 3200, 4800 /* added */, 6400
-    };
-    ReportIf(zoomLevels[0] != kZoomMin || zoomLevels[dimof(zoomLevels)-1] != kZoomMax);
-#endif
-    Vec<float>* zoomLevels = gGlobalPrefs->zoomLevels;
-    int nZooms = zoomLevels->Size();
-    ReportIf(nZooms != 0 && (zoomLevels->at(0) < kZoomMin || zoomLevels->Last() > kZoomMax));
-    ReportIf(nZooms != 0 && zoomLevels->at(0) > zoomLevels->Last());
+// differences to Adobe Reader: starts at 8.33 (instead of 1 and 6.25)
+// and has four additional intermediary zoom levels ("added")
+// clang-format off
+static float defaultZoomLevels[] = {
+    8.33f, 12.5f, 18 /* added */, 25, 33.33f, 50, 66.67f, 75,
+    100, 125, 150, 200, 300, 400, 600, 800, 1000 /* added */,
+    1200, 1600, 2000 /* added */, 2400, 3200, 4800 /* added */, 6400
+};
+// clang-format on
 
+float* GetDefaultZoomLevels(int* nZoomLevelsOut) {
+    float* zoomLevels = defaultZoomLevels;
+    int nZoomLevels = dimofi(defaultZoomLevels);
+
+    int nCustomZooms = gGlobalPrefs->zoomLevels->Size();
+    if (nCustomZooms > 0) {
+        // ReportIf((defaultZooms->at(0) < kZoomMin || defaultZooms->Last() > kZoomMax));
+        // ReportIf(defaultZooms->at(0) > defaultZooms->Last());
+        zoomLevels = gGlobalPrefs->zoomLevels->LendData();
+        nZoomLevels = nCustomZooms;
+    }
+    *nZoomLevelsOut = nZoomLevels;
+    return zoomLevels;
+}
+
+float DisplayModel::GetNextZoomStep(float towardsLevel) const {
     float currZoom = GetZoomVirtual(true);
     if (currZoom == towardsLevel) {
         return towardsLevel;
     }
+
+    if (MaybeGetNextZoomByIncrement(&currZoom, towardsLevel)) {
+        return currZoom;
+    }
+
+    // ReportIf(defaultZooms[0] != kZoomMin || defaultZooms[dimof(defaultZooms)-1] != kZoomMax);
+
+    int nZoomLevels;
+    float* zoomLevels = GetDefaultZoomLevels(&nZoomLevels);
+
     float pageZoom = (float)HUGE_VAL, widthZoom = (float)HUGE_VAL;
     for (int pageNo = 1; pageNo <= PageCount(); pageNo++) {
         if (PageShown(pageNo)) {
@@ -1641,8 +1669,8 @@ float DisplayModel::GetNextZoomStep(float towardsLevel) const {
     const float FUZZ = 0.01f;
     float newZoom = towardsLevel;
     if (currZoom + FUZZ < towardsLevel) {
-        for (int i = 0; i < nZooms; i++) {
-            float zoom = zoomLevels->at(i);
+        for (int i = 0; i < nZoomLevels; i++) {
+            float zoom = zoomLevels[i];
             if (zoom - FUZZ > currZoom) {
                 newZoom = zoom;
                 break;
@@ -1654,8 +1682,8 @@ float DisplayModel::GetNextZoomStep(float towardsLevel) const {
             newZoom = kZoomFitWidth;
         }
     } else if (currZoom - FUZZ > towardsLevel) {
-        for (int i = nZooms - 1; i >= 0; i--) {
-            float zoom = zoomLevels->at(i);
+        for (int i = nZoomLevels - 1; i >= 0; i--) {
+            float zoom = zoomLevels[i];
             if (zoom + FUZZ < currZoom) {
                 newZoom = zoom;
                 break;

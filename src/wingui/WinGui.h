@@ -64,18 +64,16 @@ struct WmEvent {
     bool didHandle = true; // common case so set as default
 };
 
-struct WmDestroyEvent {
-    WmEvent* e = nullptr;
-};
-
-typedef void (*WmDestroyHandler)(WmDestroyEvent&);
-
-struct Wnd : public ILayout {
+struct Wnd : ILayout {
     struct CloseEvent {
+        WmEvent* e = nullptr;
+    };
+    struct DestroyEvent {
         WmEvent* e = nullptr;
     };
 
     using CloseHandler = Func1<CloseEvent*>;
+    using DestroyHandler = Func1<DestroyEvent*>;
 
     Wnd();
     Wnd(HWND hwnd);
@@ -124,11 +122,12 @@ struct Wnd : public ILayout {
     virtual LRESULT OnMouseEvent(UINT msg, WPARAM wparam, LPARAM lparam);
     virtual void OnMove(POINTS* pts);
     virtual void OnPaint(HDC hdc, PAINTSTRUCT* ps);
-    virtual bool OnEraseBkgnd(HDC dc);
     virtual void OnSize(UINT msg, UINT type, SIZE size);
     virtual void OnTaskbarCallback(UINT msg, LPARAM lparam);
     virtual void OnTimer(UINT_PTR event_id);
     virtual void OnWindowPosChanging(WINDOWPOS* window_pos);
+
+    virtual void SetColors(COLORREF textColor, COLORREF bgColor);
 
     void Close();
     void SetPos(RECT* r);
@@ -142,7 +141,6 @@ struct Wnd : public ILayout {
 
     void SetIsEnabled(bool isEnabled) const;
     bool IsEnabled() const;
-    void SetBackgroundColor(COLORREF);
 
     void SuspendRedraw() const;
     void ResumeRedraw() const;
@@ -150,6 +148,8 @@ struct Wnd : public ILayout {
     LRESULT MessageReflect(UINT msg, WPARAM wparam, LPARAM lparam);
     LRESULT WndProcDefault(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
     LRESULT FinalWindowProc(UINT msg, WPARAM wparam, LPARAM lparam);
+
+    HBRUSH BackgroundBrush();
 
     Kind kind = nullptr;
     uintptr_t userData = 0;
@@ -165,15 +165,17 @@ struct Wnd : public ILayout {
     HFONT font = nullptr; // we don't own it
     UINT_PTR subclassId = 0;
 
-    COLORREF backgroundColor = kColorUnset;
-    HBRUSH backgroundColorBrush = nullptr;
+    // used by all controls that inherit
+    COLORREF bgColor = kColorUnset;
+    HBRUSH bgBrush = nullptr;
+    COLORREF textColor = kColorUnset;
 
     ILayout* layout = nullptr;
 
     ContextMenuHandler onContextMenu;
 
     CloseHandler onClose;
-    WmDestroyHandler onDestroy = nullptr;
+    DestroyHandler onDestroy;
 };
 
 bool PreTranslateMessage(MSG& msg);
@@ -189,7 +191,7 @@ struct Static : Wnd {
 
     Static();
 
-    Func0 onClicked;
+    Func0 onClick;
 
     HWND Create(const CreateArgs&);
 
@@ -208,7 +210,7 @@ struct Button : Wnd {
         const char* text = nullptr;
     };
 
-    Func0 onClicked{};
+    Func0 onClick{};
 
     bool isDefault = false;
 
@@ -222,7 +224,7 @@ struct Button : Wnd {
     bool OnCommand(WPARAM wparam, LPARAM lparam) override;
 };
 
-Button* CreateButton(HWND parent, const char* s, const Func0& onClicked);
+Button* CreateButton(HWND parent, const char* s, const Func0& onClick);
 Button* CreateDefaultButton(HWND parent, const char* s);
 
 //--- Tooltip
@@ -266,6 +268,7 @@ struct Edit : Wnd {
         bool isMultiLine = false;
         bool withBorder = false;
         const char* cueText = nullptr;
+        const char* text = nullptr;
         int idealSizeLines = 1;
         HFONT font = nullptr;
     };
@@ -466,7 +469,7 @@ enum class SplitterType {
 
 struct Splitter;
 
-struct Splitter : public Wnd {
+struct Splitter : Wnd {
     // called when user drags the splitter ('finishedDragging' is false) and when drag is finished ('finishedDragging'
     // is true). the owner can constrain splitter by using current cursor position and setting resizeAllowed to false if
     // it's not allowed to go there
@@ -574,6 +577,8 @@ struct TreeView : Wnd {
 
     HWND Create(const CreateArgs&);
 
+    void SetColors(COLORREF col, COLORREF bgCol) override;
+
     LRESULT WndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) override;
     LRESULT OnNotifyReflect(WPARAM, LPARAM) override;
 
@@ -585,8 +590,6 @@ struct TreeView : Wnd {
     bool GetItemRect(TreeItem ti, bool justText, RECT& r);
     TreeItem GetSelection();
     bool SelectItem(TreeItem ti);
-    void SetBackgroundColor(COLORREF bgCol);
-    void SetTextColor(COLORREF col);
     void ExpandAll();
     void CollapseAll();
     void Clear();
@@ -723,6 +726,9 @@ struct TabsCtrl : Wnd {
     // where we grabbed the tab with a leftclick, in tab coordinates
     Point grabLocation;
 
+    // if >= 0 will paint this tab as selected vs. the real selected
+    int tabForceShowSelected = -1;
+
     ClosedHandler onTabClosed;
     SelectionChangingHandler onSelectionChanging;
     SelectionChangedHandler onSelectionChanged;
@@ -761,6 +767,7 @@ struct TabsCtrl : Wnd {
 
     int InsertTab(int idx, TabInfo*);
     TabInfo* GetTab(int idx);
+    void SwapTabs(int idx1, int idx2);
 
     void SetTextAndTooltip(int idx, const char* text, const char* tooltip);
 
@@ -777,6 +784,9 @@ struct TabsCtrl : Wnd {
 
     int GetSelected();
     int SetSelected(int idx);
+    bool IsValidIdx(int idx);
+
+    void SetHighlighted(int idx);
 
     HWND GetToolTipsHwnd();
 
@@ -793,11 +803,11 @@ T GetTabsUserData(TabsCtrl* tabs, int idx) {
     return (T)tabInfo->userData;
 }
 
-void DeleteWnd(Static**);
-void DeleteWnd(Button**);
-void DeleteWnd(Edit**);
-void DeleteWnd(Checkbox**);
-void DeleteWnd(Progress**);
+template <typename T>
+void DeleteWnd(T** wnd) {
+    delete *wnd;
+    *wnd = nullptr;
+}
 
 int RunMessageLoop(HACCEL accelTable, HWND hwndDialog);
 
